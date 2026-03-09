@@ -1,5 +1,5 @@
 ﻿from datetime import datetime, timezone
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +39,39 @@ class SnapshotFeedback(BaseModel):
     note: str
 
 
+class IntegrityEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    event: Literal[
+        "multi_face_warning",
+        "multi_face_resolved",
+        "multi_face_pause",
+        "face_absent",
+        "gaze_away",
+        "face_change",
+        "resume",
+    ]
+    severity: Literal["info", "warning", "critical"]
+    source: Literal["mediapipe"] = "mediapipe"
+    timestamp: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class IntegrityLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    multiface_events: int = 0
+    multiface_resolved: bool = True
+    face_absent_events: int = 0
+    gaze_deviation_events: int = 0
+    face_change_detected: bool = False
+    session_paused: bool = False
+    pause_reason: Optional[Literal["multiface", "face_absent", "face_change"]] = None
+    overall_flag: Literal["clear", "minor_warning", "requires_review", "critical_flag"] = "clear"
+    integrity_score: float = 1.0
+    last_event_at: Optional[str] = None
+
+
 class Session(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -55,6 +88,8 @@ class Session(BaseModel):
     transcript: List[TranscriptItem]
     snapshot_feedback: List[SnapshotFeedback]
     rubric_scores: Dict[str, float]
+    integrity_log: IntegrityLog = Field(default_factory=IntegrityLog)
+    integrity_events: List[IntegrityEvent] = Field(default_factory=list)
 
 
 class SessionStartRequest(BaseModel):
@@ -92,6 +127,26 @@ class SnapshotResponse(BaseModel):
 
 class CompleteResponse(BaseModel):
     session: Session
+
+
+class IntegrityEventRequest(BaseModel):
+    event: Literal[
+        "multi_face_warning",
+        "multi_face_resolved",
+        "multi_face_pause",
+        "face_absent",
+        "gaze_away",
+        "face_change",
+        "resume",
+    ]
+    timestamp: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class IntegrityEventResponse(BaseModel):
+    integrity_log: IntegrityLog
+    session_paused: bool
+    pause_reason: Optional[Literal["multiface", "face_absent", "face_change"]] = None
 
 
 def utc_now_iso() -> str:

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Circle, Mic, Send, Square, Sparkles } from "lucide-react";
+import { Camera, Circle, Mic, Send, ShieldAlert, ShieldCheck, Square, Sparkles } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,47 @@ const defaultWorker = {
 };
 
 const defaultAssignment = "Stitch a clean straight seam with consistent margin and explain your quality checks.";
+const INTEGRITY_POLL_MS = 500;
+const MULTIFACE_WARNING_MS = 3000;
+
+const MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite";
+
+function toPointDistance(a, b) {
+  return Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0));
+}
+
+function buildFaceSignature(detection) {
+  if (!detection?.boundingBox) return null;
+  const { width, height } = detection.boundingBox;
+  const keypoints = detection.keypoints || [];
+  if (keypoints.length < 2) return null;
+
+  const leftEye = keypoints[0];
+  const rightEye = keypoints[1];
+  const nose = keypoints[2] || leftEye;
+  const eyeDistance = toPointDistance(leftEye, rightEye);
+  if (!eyeDistance) return null;
+
+  return {
+    eyeDistance,
+    aspectRatio: width / Math.max(height, 1),
+    area: width * height,
+    noseXNorm: (nose.x - leftEye.x) / eyeDistance,
+    noseYNorm: (nose.y - leftEye.y) / eyeDistance,
+  };
+}
+
+function faceChangeScore(baseline, next) {
+  if (!baseline || !next) return 0;
+  const eyeDelta = Math.abs(next.eyeDistance - baseline.eyeDistance) / Math.max(1, baseline.eyeDistance);
+  const aspectDelta = Math.abs(next.aspectRatio - baseline.aspectRatio) / Math.max(0.01, baseline.aspectRatio);
+  const areaDelta = Math.abs(next.area - baseline.area) / Math.max(1, baseline.area);
+  const noseXDelta = Math.abs(next.noseXNorm - baseline.noseXNorm);
+  const noseYDelta = Math.abs(next.noseYNorm - baseline.noseYNorm);
+
+  return (eyeDelta * 0.15) + (aspectDelta * 0.2) + (areaDelta * 0.1) + (noseXDelta * 0.3) + (noseYDelta * 0.25);
+}
 
 export default function ScreeningRoomPage() {
   const [workers, setWorkers] = useState([]);
@@ -35,16 +76,47 @@ export default function ScreeningRoomPage() {
   const [liveScore, setLiveScore] = useState(50);
   const [transcript, setTranscript] = useState([]);
   const [autoSnapshotOn, setAutoSnapshotOn] = useState(true);
+  const [integrityLog, setIntegrityLog] = useState(null);
+  const [integrityPaused, setIntegrityPaused] = useState(false);
+  const [integrityPauseReason, setIntegrityPauseReason] = useState(null);
+  const [integrityWarningSeconds, setIntegrityWarningSeconds] = useState(0);
+  const [integrityReady, setIntegrityReady] = useState(false);
+  const [integrityError, setIntegrityError] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const autoSnapshotRef = useRef(null);
+  const integrityIntervalRef = useRef(null);
+  const detectorRef = useRef(null);
+  const detectionBusyRef = useRef(false);
+  const multifaceDeadlineRef = useRef(null);
+  const faceAbsentActiveRef = useRef(false);
+  const baselineSignatureRef = useRef(null);
+  const faceDriftFramesRef = useRef(0);
+  const faceChangeLatchedRef = useRef(false);
+  const lastIntegrityEventAtRef = useRef({});
 
   const workerOptions = useMemo(
     () => workers.map((w) => ({ id: w.id, label: `${w.name} • ${w.specialization}` })),
     [workers],
   );
+
+  const isSessionLive = session?.status === "live";
+
+  const resetIntegrityState = () => {
+    setIntegrityWarningSeconds(0);
+    setIntegrityPaused(false);
+    setIntegrityPauseReason(null);
+    setIntegrityReady(false);
+    setIntegrityError("");
+    multifaceDeadlineRef.current = null;
+    faceAbsentActiveRef.current = false;
+    baselineSignatureRef.current = null;
+    faceDriftFramesRef.current = 0;
+    faceChangeLatchedRef.current = false;
+    lastIntegrityEventAtRef.current = {};
+  };
 
   useEffect(() => {
     loadWorkers();
@@ -57,12 +129,18 @@ export default function ScreeningRoomPage() {
       if (autoSnapshotRef.current) {
         clearInterval(autoSnapshotRef.current);
       }
+      if (integrityIntervalRef.current) {
+        clearInterval(integrityIntervalRef.current);
+      }
+      if (detectorRef.current?.close) {
+        detectorRef.current.close();
+      }
       window.speechSynthesis.cancel();
     };
   }, []);
 
   useEffect(() => {
-    if (!session || !cameraReady || !autoSnapshotOn) {
+    if (!session || !cameraReady || !autoSnapshotOn || integrityPaused) {
       if (autoSnapshotRef.current) {
         clearInterval(autoSnapshotRef.current);
       }
@@ -78,7 +156,175 @@ export default function ScreeningRoomPage() {
         clearInterval(autoSnapshotRef.current);
       }
     };
-  }, [session, autoSnapshotOn, cameraReady]);
+  }, [session, autoSnapshotOn, cameraReady, integrityPaused]);
+
+  useEffect(() => {
+    if (!isSessionLive || !cameraReady || !videoRef.current) {
+      if (integrityIntervalRef.current) {
+        clearInterval(integrityIntervalRef.current);
+      }
+      if (detectorRef.current?.close) {
+        detectorRef.current.close();
+      }
+      detectorRef.current = null;
+      setIntegrityReady(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const startMonitor = async () => {
+      try {
+        const vision = await import("@mediapipe/tasks-vision");
+        const fileset = await vision.FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm",
+        );
+        const detector = await vision.FaceDetector.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: MODEL_URL,
+          },
+          runningMode: "VIDEO",
+          minDetectionConfidence: 0.55,
+        });
+
+        if (cancelled) {
+          detector.close();
+          return;
+        }
+
+        detectorRef.current = detector;
+        setIntegrityReady(true);
+
+        integrityIntervalRef.current = setInterval(() => {
+          processIntegrityFrame();
+        }, INTEGRITY_POLL_MS);
+      } catch (error) {
+        setIntegrityError("MediaPipe integrity monitor unavailable.");
+        setIntegrityReady(false);
+      }
+    };
+
+    startMonitor();
+
+    return () => {
+      cancelled = true;
+      if (integrityIntervalRef.current) {
+        clearInterval(integrityIntervalRef.current);
+      }
+      if (detectorRef.current?.close) {
+        detectorRef.current.close();
+      }
+      detectorRef.current = null;
+      setIntegrityReady(false);
+    };
+  }, [isSessionLive, cameraReady]);
+
+  const postIntegrityEvent = async (event, details = {}, throttleMs = 0) => {
+    if (!session?.id) return null;
+
+    const now = Date.now();
+    const lastAt = lastIntegrityEventAtRef.current[event] || 0;
+    if (throttleMs > 0 && now - lastAt < throttleMs) {
+      return null;
+    }
+
+    lastIntegrityEventAtRef.current[event] = now;
+
+    try {
+      const response = await screeningApi.sendIntegrityEvent(session.id, {
+        event,
+        details,
+        timestamp: new Date().toISOString(),
+      });
+      setIntegrityLog(response.integrity_log);
+      setIntegrityPaused(Boolean(response.session_paused));
+      setIntegrityPauseReason(response.pause_reason || null);
+      return response;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const processIntegrityFrame = async () => {
+    if (!detectorRef.current || !videoRef.current || detectionBusyRef.current || !session?.id || !isSessionLive) return;
+    if (videoRef.current.readyState < 2 || videoRef.current.videoWidth < 32) return;
+
+    detectionBusyRef.current = true;
+
+    try {
+      const detections = detectorRef.current.detectForVideo(videoRef.current, performance.now()).detections || [];
+
+      if (detections.length > 1) {
+        if (!multifaceDeadlineRef.current) {
+          multifaceDeadlineRef.current = Date.now() + MULTIFACE_WARNING_MS;
+          await postIntegrityEvent("multi_face_warning", { faces: detections.length }, 1200);
+        }
+
+        const seconds = Math.max(0, Math.ceil((multifaceDeadlineRef.current - Date.now()) / 1000));
+        setIntegrityWarningSeconds(seconds);
+
+        if (Date.now() >= multifaceDeadlineRef.current) {
+          setIntegrityPaused(true);
+          setIntegrityPauseReason("multiface");
+          await postIntegrityEvent("multi_face_pause", { faces: detections.length }, 1500);
+        }
+        return;
+      }
+
+      if (multifaceDeadlineRef.current) {
+        multifaceDeadlineRef.current = null;
+        setIntegrityWarningSeconds(0);
+        await postIntegrityEvent("multi_face_resolved", {}, 1200);
+      }
+
+      if (detections.length === 0) {
+        if (!faceAbsentActiveRef.current) {
+          faceAbsentActiveRef.current = true;
+          setIntegrityPaused(true);
+          setIntegrityPauseReason("face_absent");
+          await postIntegrityEvent("face_absent", {}, 1000);
+        }
+        return;
+      }
+
+      faceAbsentActiveRef.current = false;
+
+      const detection = detections[0];
+      const signature = buildFaceSignature(detection);
+      if (signature && !baselineSignatureRef.current) {
+        baselineSignatureRef.current = signature;
+      } else if (signature && baselineSignatureRef.current && !faceChangeLatchedRef.current) {
+        const score = faceChangeScore(baselineSignatureRef.current, signature);
+        if (score > 0.42) {
+          faceDriftFramesRef.current += 1;
+        } else {
+          faceDriftFramesRef.current = Math.max(0, faceDriftFramesRef.current - 1);
+        }
+
+        if (faceDriftFramesRef.current >= 6) {
+          faceChangeLatchedRef.current = true;
+          setIntegrityPaused(true);
+          setIntegrityPauseReason("face_change");
+          await postIntegrityEvent("face_change", { score: Number(score.toFixed(3)) }, 1000);
+        }
+      }
+
+      const box = detection?.boundingBox;
+      if (box) {
+        const centerX = box.originX + (box.width / 2);
+        const frameCenterX = videoRef.current.videoWidth / 2;
+        const normalizedOffset = Math.abs(centerX - frameCenterX) / Math.max(frameCenterX, 1);
+
+        if (normalizedOffset > 0.45) {
+          await postIntegrityEvent("gaze_away", { normalized_offset: Number(normalizedOffset.toFixed(3)) }, 15000);
+        }
+      }
+    } catch (error) {
+      // Skip transient frame errors to keep interview running.
+    } finally {
+      detectionBusyRef.current = false;
+    }
+  };
 
   const loadWorkers = async () => {
     try {
@@ -138,7 +384,9 @@ export default function ScreeningRoomPage() {
       }
 
       const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() });
+      resetIntegrityState();
       setSession(started.session);
+      setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question);
       setLiveScore(started.session.live_score);
       setTranscript(started.session.transcript || []);
@@ -153,7 +401,7 @@ export default function ScreeningRoomPage() {
 
   const submitWorkerTurn = async (explicitText) => {
     const textToSend = (explicitText || workerText).trim();
-    if (!session || !textToSend) return;
+    if (!session || !textToSend || integrityPaused) return;
 
     setIsSubmitting(true);
     try {
@@ -186,6 +434,11 @@ export default function ScreeningRoomPage() {
   };
 
   const startVoiceInput = () => {
+    if (integrityPaused) {
+      toast.error("Interview is paused for integrity check.");
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast.error("Speech recognition is not supported in this browser.");
@@ -225,7 +478,7 @@ export default function ScreeningRoomPage() {
   };
 
   const captureSnapshot = async (isAuto = false) => {
-    if (!session || !videoRef.current || !canvasRef.current) return;
+    if (!session || integrityPaused || !videoRef.current || !canvasRef.current) return;
 
     try {
       const canvas = canvasRef.current;
@@ -253,6 +506,23 @@ export default function ScreeningRoomPage() {
     }
   };
 
+  const resumeAfterPause = async () => {
+    if (!session || !integrityPaused) return;
+
+    if (integrityPauseReason === "face_change") {
+      toast.error("Face-change flag needs recruiter review. Session cannot auto-resume.");
+      return;
+    }
+
+    const response = await postIntegrityEvent("resume", {}, 0);
+    if (response || !integrityLog?.face_change_detected) {
+      setIntegrityPaused(false);
+      setIntegrityPauseReason(null);
+      setIntegrityWarningSeconds(0);
+      toast.success("Interview resumed.");
+    }
+  };
+
   const finishScreening = async () => {
     if (!session) return;
 
@@ -260,6 +530,7 @@ export default function ScreeningRoomPage() {
     try {
       const completed = await screeningApi.completeSession(session.id);
       setSession(completed.session);
+      setIntegrityLog(completed.session.integrity_log || integrityLog);
       setLiveScore(completed.session.live_score);
       toast.success(`Screening complete: ${completed.session.recommendation.toUpperCase()}`);
     } catch (error) {
@@ -284,10 +555,7 @@ export default function ScreeningRoomPage() {
                     AI voice interviewer + real-time visual presence for tailoring skill assessment.
                   </p>
                 </div>
-                <Badge
-                  className="ai-eye bg-accent/10 px-4 py-2 text-accent"
-                  data-testid="ai-eye-status-badge"
-                >
+                <Badge className="ai-eye bg-accent/10 px-4 py-2 text-accent" data-testid="ai-eye-status-badge">
                   AI Eye Active
                 </Badge>
               </div>
@@ -313,6 +581,39 @@ export default function ScreeningRoomPage() {
                     data-testid="camera-error-message"
                   >
                     {cameraError}
+                  </div>
+                ) : null}
+
+                {integrityWarningSeconds > 0 ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-amber-950/70 p-5 text-center text-amber-100">
+                    <div>
+                      <p className="text-lg font-semibold">Multiple people detected</p>
+                      <p className="mt-2 text-sm">
+                        Please ensure only you are visible. Interview pausing in {integrityWarningSeconds}...
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {integrityPaused ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/75 p-5 text-center text-white">
+                    <div className="space-y-3">
+                      <p className="text-lg font-semibold">Interview Paused for Integrity Monitoring</p>
+                      <p className="text-sm text-white/80">
+                        {integrityPauseReason === "face_absent"
+                          ? "Face left the frame. Please return to camera."
+                          : integrityPauseReason === "face_change"
+                            ? "Face identity changed. Recruiter verification required."
+                            : "Multiple faces were detected."}
+                      </p>
+                      <Button
+                        onClick={resumeAfterPause}
+                        disabled={integrityPauseReason === "face_change"}
+                        data-testid="integrity-resume-button"
+                      >
+                        I&apos;m alone now — Resume
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -404,7 +705,7 @@ export default function ScreeningRoomPage() {
                     <div className="flex flex-wrap gap-2">
                       <Button
                         onClick={() => submitWorkerTurn()}
-                        disabled={isSubmitting || !session}
+                        disabled={isSubmitting || !session || integrityPaused}
                         data-testid="submit-worker-response-button"
                       >
                         <Send className="mr-2 h-4 w-4" />
@@ -413,7 +714,7 @@ export default function ScreeningRoomPage() {
                       <Button
                         variant={isListening ? "secondary" : "outline"}
                         onClick={startVoiceInput}
-                        disabled={!session}
+                        disabled={!session || integrityPaused}
                         data-testid="start-voice-capture-button"
                       >
                         <Mic className="mr-2 h-4 w-4" />
@@ -439,7 +740,7 @@ export default function ScreeningRoomPage() {
                     <Button
                       variant="secondary"
                       onClick={() => captureSnapshot(false)}
-                      disabled={!session || !cameraReady}
+                      disabled={!session || !cameraReady || integrityPaused}
                       data-testid="capture-snapshot-button"
                     >
                       <Camera className="mr-2 h-4 w-4" />
@@ -542,6 +843,39 @@ export default function ScreeningRoomPage() {
               >
                 {session?.status === "live" ? "Restart Session" : "Start Live Session"}
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60" data-testid="integrity-monitor-card">
+            <CardHeader>
+              <CardTitle className="text-xl" data-testid="integrity-monitor-title">
+                Integrity Monitor
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Engine</span>
+                <span className="flex items-center gap-1 font-medium">
+                  {integrityReady ? <ShieldCheck className="h-4 w-4 text-green-600" /> : <ShieldAlert className="h-4 w-4 text-amber-600" />}
+                  {integrityReady ? "MediaPipe Active" : "Inactive"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Poll Interval</span>
+                <span className="font-mono">500ms</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Status</span>
+                <span className="font-medium">{integrityPaused ? "Paused" : "Monitoring"}</span>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-2 text-xs">
+                <p>multiface_events: {integrityLog?.multiface_events || 0}</p>
+                <p>face_absent_events: {integrityLog?.face_absent_events || 0}</p>
+                <p>gaze_deviation_events: {integrityLog?.gaze_deviation_events || 0}</p>
+                <p>face_change_detected: {integrityLog?.face_change_detected ? "true" : "false"}</p>
+                <p>overall_flag: {integrityLog?.overall_flag || "clear"}</p>
+              </div>
+              {integrityError ? <p className="text-xs text-amber-700">{integrityError}</p> : null}
             </CardContent>
           </Card>
 

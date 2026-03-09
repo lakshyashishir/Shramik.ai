@@ -17,6 +17,8 @@ export const screeningApi = {
     (await client.post(`/sessions/${sessionId}/turn`, payload)).data,
   captureSnapshot: async (sessionId, payload) =>
     (await client.post(`/sessions/${sessionId}/snapshot`, payload)).data,
+  sendIntegrityEvent: async (sessionId, payload) =>
+    (await client.post(`/sessions/${sessionId}/integrity/event`, payload)).data,
   completeSession: async (sessionId) =>
     (await client.post(`/sessions/${sessionId}/complete`)).data,
   listLiveSessions: async () => (await client.get("/sessions/live")).data,

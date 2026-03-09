@@ -58,6 +58,7 @@ def finalize_session(session: Session) -> Session:
     communication = min(90.0, round(session.live_score + 4.0, 2))
     speed_readiness = min(88.0, round(session.live_score + 2.0, 2))
     instruction_following = min(91.0, round(session.live_score + 3.0, 2))
+    integrity_compliance = round(session.integrity_log.integrity_score * 100, 2)
 
     rubric = {
         "technical_precision": technical_precision,
@@ -65,14 +66,19 @@ def finalize_session(session: Session) -> Session:
         "communication": communication,
         "speed_readiness": speed_readiness,
         "instruction_following": instruction_following,
+        "integrity_compliance": integrity_compliance,
     }
     overall = round(sum(rubric.values()) / len(rubric), 2)
-    recommendation = "pass" if overall >= 75 else "hold"
-    summary = (
-        "Worker shows strong tailoring fundamentals and can be considered for supervised line work."
-        if recommendation == "pass"
-        else "Worker shows promise but needs closer supervision before deployment."
-    )
+    if session.integrity_log.overall_flag == "critical_flag":
+        recommendation = "reject"
+        summary = "Face identity changed during interview. Recruiter verification is required before proceeding."
+    else:
+        recommendation = "pass" if overall >= 75 else "hold"
+        summary = (
+            "Worker shows strong tailoring fundamentals and can be considered for supervised line work."
+            if recommendation == "pass"
+            else "Worker shows promise but needs closer supervision before deployment."
+        )
 
     return session.model_copy(
         update={

@@ -203,6 +203,13 @@ export default function AdminDashboardPage() {
                     <p className="mt-1 font-mono text-xs text-accent" data-testid={`report-score-${report.id}`}>
                       Final score: {Math.round(report.live_score)}%
                     </p>
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground" data-testid={`report-integrity-flag-${report.id}`}>
+                      Integrity: {report.integrity_log?.overall_flag || "clear"}
+                    </p>
+                    <p className="font-mono text-[11px] text-muted-foreground" data-testid={`report-integrity-events-${report.id}`}>
+                      multi-face {report.integrity_log?.multiface_events || 0} | absent {report.integrity_log?.face_absent_events || 0} | gaze{" "}
+                      {report.integrity_log?.gaze_deviation_events || 0}
+                    </p>
                     <p className="mt-2 text-sm text-muted-foreground" data-testid={`report-summary-${report.id}`}>
                       {report.summary}
                     </p>

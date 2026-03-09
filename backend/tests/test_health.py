@@ -49,6 +49,21 @@ def test_worker_and_session_flow() -> None:
     )
     assert snapshot.status_code == 200
 
+    integrity_event = client.post(
+        f"/api/sessions/{session_id}/integrity/event",
+        json={"event": "multi_face_warning", "details": {"faces": 2}},
+    )
+    assert integrity_event.status_code == 200
+    assert integrity_event.json()["integrity_log"]["multiface_events"] == 1
+
+    integrity_resolve = client.post(
+        f"/api/sessions/{session_id}/integrity/event",
+        json={"event": "multi_face_resolved"},
+    )
+    assert integrity_resolve.status_code == 200
+    assert integrity_resolve.json()["integrity_log"]["multiface_resolved"] is True
+
     completed = client.post(f"/api/sessions/{session_id}/complete")
     assert completed.status_code == 200
     assert completed.json()["session"]["status"] == "completed"
+    assert "integrity_compliance" in completed.json()["session"]["rubric_scores"]
