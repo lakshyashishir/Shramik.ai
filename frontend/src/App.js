@@ -4,7 +4,7 @@ import { ThemeProvider } from "next-themes";
 import LandingPage from "@/pages/LandingPage";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
-import TailorBoard from "@pages/WorkersBoardPage";
+import TailorBoard from "@/pages/WorkersBoardPage";
 import { Toaster } from "@/components/ui/sonner";
 
 const navLinks = [
@@ -59,6 +59,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/screening" element={<ScreeningRoomPage />} />
+	    <Route path="/jobs" element={<TailorBoard />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
           </Routes>
         </div>
