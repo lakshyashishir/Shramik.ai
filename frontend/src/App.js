@@ -4,12 +4,14 @@ import { ThemeProvider } from "next-themes";
 import LandingPage from "@/pages/LandingPage";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import TailorBoard from "@pages/WorkersBoardPage";
 import { Toaster } from "@/components/ui/sonner";
 
 const navLinks = [
   { path: "/", label: "Home" },
   { path: "/screening", label: "Live Screening" },
   { path: "/admin", label: "Operations" },
+  { path: "/jobs", label: "Job Board" },
 ];
 
 function MainNavigation() {
