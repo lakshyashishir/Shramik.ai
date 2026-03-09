@@ -11,109 +11,12 @@ const TAILORS = [
     experience: 9,
     rating: 4.9,
     reviews: 142,
-    hourlyRate: 18,
     skills: ["Bridal Wear", "Embroidery", "Pattern Making"],
     bio: "Crafting heirloom-quality bridal pieces with intricate zardozi embroidery for over 9 years.",
     available: true,
     completedJobs: 318,
     avatar: "PM",
     color: "#C8845A",
-  },
-  {
-    id: 2,
-    name: "James Okafor",
-    location: "Lagos, Nigeria",
-    specialization: "Suit Tailoring",
-    experience: 14,
-    rating: 4.8,
-    reviews: 203,
-    hourlyRate: 22,
-    skills: ["Suit Tailoring", "Alterations", "Leather Work"],
-    bio: "Bespoke suiting specialist trained in Savile Row tradition, now bringing that craft to modern West African fashion.",
-    available: true,
-    completedJobs: 540,
-    avatar: "JO",
-    color: "#4A7C8E",
-  },
-  {
-    id: 3,
-    name: "Sofia Reyes",
-    location: "Barcelona, Spain",
-    specialization: "Knitwear",
-    experience: 6,
-    rating: 4.7,
-    reviews: 89,
-    hourlyRate: 20,
-    skills: ["Knitwear", "Children's Wear", "Alterations"],
-    bio: "Specializing in sustainable knitted garments using natural fibers. Slow fashion advocate.",
-    available: false,
-    completedJobs: 176,
-    avatar: "SR",
-    color: "#7A6E9E",
-  },
-  {
-    id: 4,
-    name: "Aiko Tanaka",
-    location: "Kyoto, Japan",
-    specialization: "Pattern Making",
-    experience: 11,
-    rating: 5.0,
-    reviews: 67,
-    hourlyRate: 28,
-    skills: ["Pattern Making", "Bridal Wear", "Embroidery"],
-    bio: "Master pattern drafter blending traditional kimono construction methods with contemporary silhouettes.",
-    available: true,
-    completedJobs: 214,
-    avatar: "AT",
-    color: "#8E4A5A",
-  },
-  {
-    id: 5,
-    name: "Carlos Vega",
-    location: "Mexico City, Mexico",
-    specialization: "Leather Work",
-    experience: 17,
-    rating: 4.9,
-    reviews: 311,
-    hourlyRate: 25,
-    skills: ["Leather Work", "Industrial Stitching", "Alterations"],
-    bio: "Third-generation leatherworker crafting jackets, belts, and accessories with artisanal precision.",
-    available: true,
-    completedJobs: 892,
-    avatar: "CV",
-    color: "#6B7A3E",
-  },
-  {
-    id: 6,
-    name: "Amara Diallo",
-    location: "Dakar, Senegal",
-    specialization: "Embroidery",
-    experience: 8,
-    rating: 4.8,
-    reviews: 124,
-    hourlyRate: 15,
-    skills: ["Embroidery", "Bridal Wear", "Children's Wear"],
-    bio: "Breathing life into fabric through traditional Senegalese embroidery patterns and bold West African prints.",
-    available: true,
-    completedJobs: 289,
-    avatar: "AD",
-    color: "#C87A2E",
-  },
-  {
-    id: 7,
-    name: "Lars Eriksson",
-    location: "Stockholm, Sweden",
-    specialization: "Industrial Stitching",
-    experience: 12,
-    rating: 4.6,
-    reviews: 58,
-    hourlyRate: 30,
-    skills: ["Industrial Stitching", "Knitwear", "Suit Tailoring"],
-    bio: "Industrial-scale precision meets Scandinavian minimalism. Specializing in workwear and outerwear production.",
-    available: false,
-    completedJobs: 420,
-    avatar: "LE",
-    color: "#3E6B7A",
   },
   {
     id: 8,
@@ -123,7 +26,6 @@ const TAILORS = [
     experience: 5,
     rating: 4.7,
     reviews: 93,
-    hourlyRate: 12,
     skills: ["Children's Wear", "Alterations", "Embroidery"],
     bio: "Making the most adorable, durable, and safe garments for little ones aged 0–12 years.",
     available: true,
@@ -134,11 +36,11 @@ const TAILORS = [
 ];
 
 const JOBS = [
-  { id: 1, title: "Bridal Lehenga Embroidery", budget: "$200–400", skill: "Embroidery", postedAgo: "2h", urgent: true },
-  { id: 2, title: "10 Suit Alterations (Corporate)", budget: "$150", skill: "Alterations", postedAgo: "5h", urgent: false },
-  { id: 3, title: "Pattern Making — SS25 Collection", budget: "$500–800", skill: "Pattern Making", postedAgo: "1d", urgent: false },
-  { id: 4, title: "Leather Jacket Repair & Restoration", budget: "$80–120", skill: "Leather Work", postedAgo: "3h", urgent: true },
-  { id: 5, title: "Children's School Uniform × 30 pcs", budget: "$300", skill: "Children's Wear", postedAgo: "2d", urgent: false },
+  { id: 1, title: "Bridal Lehenga Embroidery", budget: "Rs. 2000–4000", skill: "Embroidery", postedAgo: "2h", urgent: true },
+  { id: 2, title: "10 Suit Alterations (Corporate)", budget: "Rs.1500", skill: "Alterations", postedAgo: "5h", urgent: false },
+  { id: 3, title: "Pattern Making — SS25 Collection", budget: "Rs.5000–8000", skill: "Pattern Making", postedAgo: "1d", urgent: false },
+  { id: 4, title: "Leather Jacket Repair & Restoration", budget: "Rs.800–1200", skill: "Leather Work", postedAgo: "3h", urgent: true },
+  { id: 5, title: "Children's School Uniform × 30 pcs", budget: "Rs.600-800", skill: "Children's Wear", postedAgo: "2d", urgent: false },
 ];
 
 function StarRating({ rating }) {
@@ -226,9 +128,6 @@ function TailorCard({ tailor, onHire }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <StarRating rating={tailor.rating} />
         <span style={{ fontSize: 12, color: "#9A8870" }}>({tailor.reviews} reviews)</span>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#5A4A3A", fontWeight: 600 }}>
-          ${tailor.hourlyRate}/hr
-        </span>
       </div>
 
       {/* Bio */}
@@ -511,7 +410,7 @@ export default function TailorBoard() {
                 fontFamily: "'Playfair Display', Georgia, serif",
                 fontSize: "clamp(18px, 4vw, 26px)",
                 fontWeight: 700, margin: 0, letterSpacing: -0.5,
-              }}>ThreadWork</h1>
+              }}>Job Board</h1>
               <p style={{ margin: 0, fontSize: 11, color: "#C8A882", letterSpacing: 1.5, textTransform: "uppercase" }}>
                 Artisan Tailor Marketplace
               </p>
@@ -572,7 +471,7 @@ export default function TailorBoard() {
             <em style={{ color: "#C8845A" }}>for Any Garment</em>
           </h2>
           <p style={{ fontSize: "clamp(13px, 2.5vw, 16px)", color: "#C8A882", maxWidth: 500, margin: "0 auto 24px", lineHeight: 1.7 }}>
-            Connect with verified artisan tailors worldwide. From bridal couture to industrial production — find the perfect craft match.
+            Connect with verified artisan tailors in India. From home stitching to industrial production, find the perfect craft match.
           </p>
           <div style={{ display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
             {[["320+", "Active Tailors"], ["12K+", "Jobs Done"], ["4.8★", "Avg Rating"]].map(([num, label]) => (
@@ -732,7 +631,7 @@ export default function TailorBoard() {
               {[
                 { label: "Job Title *", key: "title", type: "text", placeholder: "e.g. Bridal Lehenga Embroidery" },
                 { label: "Required Skill *", key: "skill", type: "select" },
-                { label: "Budget (USD)", key: "budget", type: "text", placeholder: "e.g. $150–300 or Negotiable" },
+                { label: "Budget (USD)", key: "budget", type: "text", placeholder: "e.g. Rs. 500-800 or Negotiable" },
                 { label: "Project Description *", key: "description", type: "textarea", placeholder: "Describe the garment, quantity, deadline, and any specific requirements..." },
               ].map(field => (
                 <div key={field.key} style={{ marginBottom: 18 }}>
@@ -788,8 +687,7 @@ export default function TailorBoard() {
         textAlign: "center", padding: "20px",
         fontSize: 12, borderTop: "3px solid #C8845A",
       }}>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", color: "#C8845A" }}>ThreadWork</span>
-        {" "}· Artisan Tailor Marketplace · Connecting Craft Worldwide
+        {" "} Artisan Tailor Marketplace · Connecting Craft Worldwide
       </footer>
 
       <HireModal tailor={selectedTailor} onClose={() => setSelectedTailor(null)} />
