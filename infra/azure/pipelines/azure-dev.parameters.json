@@ -1,0 +1,18 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "value": "dev"
+    },
+    "storageAccountName": {
+      "value": "devshramikmedia001"
+    },
+    "keyVaultName": {
+      "value": "kv-dev-shramik-001"
+    },
+    "containerAppsEnvironmentName": {
+      "value": "cae-dev-shramik-001"
+    }
+  }
+}

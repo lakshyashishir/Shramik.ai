@@ -1,0 +1,40 @@
+﻿{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillScore",
+  "type": "object",
+  "required": [
+    "overall_score",
+    "confidence",
+    "recommended_role",
+    "rubric_scores",
+    "evidence_flags",
+    "recruiter_summary"
+  ],
+  "properties": {
+    "overall_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "recommended_role": {
+      "type": "string"
+    },
+    "rubric_scores": {
+      "type": "array"
+    },
+    "evidence_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recruiter_summary": {
+      "type": "string"
+    }
+  }
+}

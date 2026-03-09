@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    margin: 0;
+    font-family: "Manrope", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background:
+        radial-gradient(circle at 10% 0%, rgba(194, 65, 12, 0.08), transparent 32%),
+        radial-gradient(circle at 90% 100%, rgba(30, 27, 75, 0.12), transparent 38%),
+        hsl(var(--background));
+}
+
+code {
+    font-family: "JetBrains Mono", monospace;
+}
+
+@layer base {
+    :root {
+        --background: 40 33% 98%;
+        --foreground: 242 15% 14%;
+        --card: 0 0% 100%;
+        --card-foreground: 242 15% 14%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 242 15% 14%;
+        --primary: 242 47% 20%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 20 88% 40%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 40 22% 94%;
+        --muted-foreground: 235 10% 40%;
+        --accent: 217 91% 60%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 30 15% 88%;
+        --input: 30 16% 88%;
+        --ring: 217 91% 60%;
+        --chart-1: 242 47% 20%;
+        --chart-2: 20 88% 40%;
+        --chart-3: 217 91% 60%;
+        --chart-4: 153 60% 35%;
+        --chart-5: 0 72% 51%;
+        --radius: 0.9rem;
+    }
+    .dark {
+        --background: 240 6% 7%;
+        --foreground: 36 33% 95%;
+        --card: 240 6% 9%;
+        --card-foreground: 36 33% 95%;
+        --popover: 240 6% 9%;
+        --popover-foreground: 36 33% 95%;
+        --primary: 20 88% 50%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 242 40% 24%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 240 4% 17%;
+        --muted-foreground: 30 12% 70%;
+        --accent: 217 91% 60%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 72% 51%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 4% 18%;
+        --input: 240 4% 18%;
+        --ring: 217 91% 60%;
+        --chart-1: 20 88% 50%;
+        --chart-2: 217 91% 60%;
+        --chart-3: 153 60% 35%;
+        --chart-4: 45 93% 47%;
+        --chart-5: 0 72% 51%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+        overflow-x: hidden;
+    }
+}
+
+::selection {
+    background: hsl(var(--secondary));
+    color: white;
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}
