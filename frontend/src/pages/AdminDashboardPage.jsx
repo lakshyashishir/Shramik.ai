@@ -233,6 +233,31 @@ export default function AdminDashboardPage() {
                     <p className="mt-2 text-sm text-muted-foreground" data-testid={`report-summary-${report.id}`}>
                       {report.summary}
                     </p>
+                    {report.rubric_scores && Object.keys(report.rubric_scores).filter(k => k !== "integrity_compliance").length > 0 && (
+                      <div className="mt-3 space-y-1.5" data-testid={`report-rubric-breakdown-${report.id}`}>
+                        {[
+                          { key: "stitch_quality",            label: "Stitch",    w: "32%" },
+                          { key: "machine_familiarity",       label: "Machine",   w: "26%" },
+                          { key: "technical_knowledge",       label: "Technical", w: "24%" },
+                          { key: "fabric_material_knowledge", label: "Fabric",    w: "12%" },
+                          { key: "communication_confidence",  label: "Comm.",     w: "6%"  },
+                        ].filter(({ key }) => report.rubric_scores[key] != null).map(({ key, label, w }) => {
+                          const score = Math.round(report.rubric_scores[key]);
+                          const barColor = score >= 70 ? "bg-green-500" : score >= 50 ? "bg-yellow-500" : "bg-red-500";
+                          return (
+                            <div key={key}>
+                              <div className="flex justify-between">
+                                <span className="font-mono text-[10px] text-muted-foreground">{label} <span className="opacity-50">({w})</span></span>
+                                <span className="font-mono text-[10px] font-bold text-primary">{score}</span>
+                              </div>
+                              <div className="h-1 rounded-full bg-muted">
+                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${score}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </article>
                 ))
               )}

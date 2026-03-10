@@ -1010,26 +1010,130 @@ export default function ScreeningRoomPage() {
                 </div>
               )}
 
-              {/* session complete */}
+              {/* session complete — detailed scorecard */}
               {sessionDone && (
                 <div style={{
-                  position: "absolute", inset: 0, background: "rgba(0,0,0,0.9)",
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24,
+                  position: "absolute", inset: 0, background: "rgba(5,10,24,0.97)",
+                  display: "flex", flexDirection: "column", alignItems: "stretch",
+                  overflowY: "auto", padding: "20px 18px",
                 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "#93c5fd", margin: 0 }}>
-                    {"Session Complete"}
+                  {/* kicker */}
+                  <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: "#93c5fd", margin: "0 0 10px 0", textAlign: "center" }}>
+                    Shramik Passport
                   </p>
-                  <div style={{ fontSize: 56, fontWeight: 800, color: scoreColor, textShadow: `0 0 48px ${scoreColor}66` }}>
-                    {Math.round(liveScore)}%
+
+                  {/* overall score + recommendation */}
+                  <div style={{ textAlign: "center", marginBottom: 14 }}>
+                    <div style={{ fontSize: 52, fontWeight: 800, color: scoreColor, textShadow: `0 0 40px ${scoreColor}55`, lineHeight: 1 }}>
+                      {Math.round(liveScore)}%
+                    </div>
+                    <p style={{ fontSize: 10, color: "#475569", margin: "4px 0 8px 0" }}>Overall Score</p>
+                    {session?.recommendation && (
+                      <div style={{
+                        display: "inline-block",
+                        padding: "5px 16px", borderRadius: 20,
+                        background: `${scoreColor}18`, border: `1px solid ${scoreColor}45`,
+                        fontSize: 11, fontWeight: 800, color: scoreColor, textTransform: "uppercase", letterSpacing: 2,
+                      }}>
+                        {session.recommendation}
+                      </div>
+                    )}
                   </div>
-                  <p style={{ fontSize: 12, color: "#71675d", margin: 0 }}>{"Final AI Score"}</p>
-                  {session?.recommendation && (
-                    <div style={{
-                      padding: "7px 20px", borderRadius: 20,
-                      background: `${scoreColor}12`, border: `1px solid ${scoreColor}30`,
-                      fontSize: 12, fontWeight: 700, color: scoreColor, textTransform: "uppercase", letterSpacing: 1.5,
+
+                  {/* AI summary */}
+                  {session?.summary && (
+                    <p style={{
+                      fontSize: 11, color: "#94a3b8", lineHeight: 1.6, margin: "0 0 14px 0",
+                      padding: "10px 12px", background: "rgba(59,130,246,0.06)",
+                      borderRadius: 8, borderLeft: "3px solid #3b82f6",
                     }}>
-                      {session.recommendation}
+                      {session.summary}
+                    </p>
+                  )}
+
+                  {/* rubric breakdown */}
+                  {session?.rubric_scores && (
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 8px 0" }}>
+                        Skill Breakdown
+                      </p>
+                      {[
+                        { key: "stitch_quality",           label: "Stitch Quality",    weight: "32%" },
+                        { key: "machine_familiarity",      label: "Machine Skill",     weight: "26%" },
+                        { key: "technical_knowledge",      label: "Technical Know.",   weight: "24%" },
+                        { key: "fabric_material_knowledge",label: "Fabric Knowledge",  weight: "12%" },
+                        { key: "communication_confidence", label: "Communication",     weight: "6%"  },
+                        { key: "integrity_compliance",     label: "Integrity",         weight: ""    },
+                      ].map(({ key, label, weight }) => {
+                        const score = Math.round(session.rubric_scores[key] ?? 0);
+                        const barColor = score >= 70 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444";
+                        return (
+                          <div key={key} style={{ marginBottom: 8 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                              <span style={{ fontSize: 10, color: "#cbd5e1" }}>
+                                {label}{weight && <span style={{ color: "#475569", marginLeft: 4 }}>({weight})</span>}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: barColor }}>{score}</span>
+                            </div>
+                            <div style={{ height: 4, borderRadius: 3, background: "rgba(255,255,255,0.07)" }}>
+                              <div style={{ height: "100%", borderRadius: 3, background: barColor, width: `${score}%`, transition: "width 0.8s ease" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* integrity summary */}
+                  {integrityLog && (
+                    <div style={{ marginBottom: 14, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 6px 0" }}>
+                        Integrity Log
+                      </p>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                        {[
+                          { label: "Multi-face", val: integrityLog.multiface_events || 0 },
+                          { label: "Face absent", val: integrityLog.face_absent_events || 0 },
+                          { label: "Gaze off", val: integrityLog.gaze_deviation_events || 0 },
+                        ].map(({ label, val }) => (
+                          <div key={label} style={{ fontSize: 10, color: "#475569" }}>
+                            {label}: <strong style={{ color: val > 0 ? "#f59e0b" : "#94a3b8" }}>{val}</strong>
+                          </div>
+                        ))}
+                        <div style={{ fontSize: 10, color: "#475569" }}>
+                          Flag: <strong style={{
+                            color: integrityLog.overall_flag === "clear" ? "#22c55e"
+                              : integrityLog.overall_flag === "critical_flag" ? "#ef4444"
+                              : "#f59e0b",
+                          }}>
+                            {integrityLog.overall_flag || "clear"}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* snapshot feedback */}
+                  {latestSnapshot && (
+                    <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)" }}>
+                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 6px 0" }}>
+                        Stitch Snapshot
+                      </p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, color: "#cbd5e1", flex: 1, lineHeight: 1.5 }}>{latestSnapshot.feedback}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor, flexShrink: 0 }}>
+                          {Math.round(latestSnapshot.quality_score)}%
+                        </span>
+                      </div>
+                      {latestSnapshot.focus_areas?.length > 0 && (
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          {latestSnapshot.focus_areas.map(a => (
+                            <span key={a} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: "rgba(59,130,246,0.12)", color: "#93c5fd" }}>
+                              {a}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
