@@ -27,6 +27,8 @@ class TranscriptItem(BaseModel):
     speaker: Literal["ai", "worker", "system"]
     text: str
     timestamp: str
+    rubric_tag: Optional[str] = None
+    acoustic_confidence: Optional[float] = None
 
 
 class SnapshotFeedback(BaseModel):
@@ -90,6 +92,8 @@ class Session(BaseModel):
     rubric_scores: Dict[str, float]
     integrity_log: IntegrityLog = Field(default_factory=IntegrityLog)
     integrity_events: List[IntegrityEvent] = Field(default_factory=list)
+    current_phase: str = "intro"
+    self_ratings: Dict[str, float] = Field(default_factory=dict)
 
 
 class SessionStartRequest(BaseModel):
@@ -104,12 +108,16 @@ class SessionStartResponse(BaseModel):
 
 class TurnRequest(BaseModel):
     worker_text: str = Field(min_length=1, max_length=600)
+    rubric_tag: Optional[str] = None
+    acoustic_confidence: Optional[float] = None
 
 
 class TurnResponse(BaseModel):
     ai_question: str
     coach_note: str
     live_score: float
+    rubric_tag: Optional[str] = None
+    phase: Optional[str] = None
 
 
 class SnapshotRequest(BaseModel):

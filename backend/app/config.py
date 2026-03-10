@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     azure_speech_key: str = ""
     azure_speech_region: str = ""
     azure_storage_connection_string: str = ""
+    sarvam_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_prefix="API_",

@@ -1,11 +1,6 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
-from app.agents.screening_logic import (
-    build_snapshot_feedback,
-    choose_opening_question,
-    finalize_session,
-    next_turn_ai,
-)
+from app.agents.screening_logic import build_snapshot_feedback, choose_opening_question, finalize_session, run_agent_turn
 from app.models import (
     CompleteResponse,
     IntegrityEvent,
@@ -39,15 +34,12 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
 
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
-def start_session(
-    payload: SessionStartRequest,
-    locale: str = Query(default="en"),
-) -> SessionStartResponse:
+def start_session(payload: SessionStartRequest) -> SessionStartResponse:
     worker = workers.get(payload.worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    first_question = choose_opening_question(worker.name, payload.assignment, locale=locale)
+    first_question = choose_opening_question(worker.name, payload.assignment)
     session = Session(
         id=new_id("session"),
         worker_id=worker.id,
@@ -69,31 +61,44 @@ def start_session(
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
-def session_turn(
-    session_id: str,
-    payload: TurnRequest,
-    locale: str = Query(default="en"),
-) -> TurnResponse:
+def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    ai_question, coach_note, delta = next_turn_ai(session, payload.worker_text, locale=locale)
-
+    result = run_agent_turn(session, payload.worker_text)
     updated = session.model_copy(
         update={
             "transcript": [
                 *session.transcript,
-                TranscriptItem(speaker="worker", text=payload.worker_text.strip(), timestamp=utc_now_iso()),
-                TranscriptItem(speaker="ai", text=ai_question, timestamp=utc_now_iso()),
+                TranscriptItem(
+                    speaker="worker",
+                    text=payload.worker_text.strip(),
+                    timestamp=utc_now_iso(),
+                    rubric_tag=payload.rubric_tag,
+                    acoustic_confidence=payload.acoustic_confidence,
+                ),
+                TranscriptItem(
+                    speaker="ai",
+                    text=result["ai_reply"],
+                    timestamp=utc_now_iso(),
+                    rubric_tag=result["rubric_tag"],
+                ),
             ],
-            "live_score": min(100.0, round(session.live_score + delta, 2)),
+            "current_phase": result["phase"],
+            "live_score": min(100.0, round(session.live_score + 2.5, 2)),
         }
     )
     sessions[session_id] = updated
-    return TurnResponse(ai_question=ai_question, coach_note=coach_note, live_score=updated.live_score)
+    return TurnResponse(
+        ai_question=result["ai_reply"],
+        coach_note="",
+        live_score=updated.live_score,
+        rubric_tag=result["rubric_tag"],
+        phase=result["phase"],
+    )
 
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
@@ -188,17 +193,14 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
-def complete_session(
-    session_id: str,
-    locale: str = Query(default="en"),
-) -> CompleteResponse:
+def complete_session(session_id: str) -> CompleteResponse:
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status == "completed":
         return CompleteResponse(session=session)
 
-    completed = finalize_session(session, locale=locale)
+    completed = finalize_session(session)
     sessions[session_id] = completed
     return CompleteResponse(session=completed)
 
