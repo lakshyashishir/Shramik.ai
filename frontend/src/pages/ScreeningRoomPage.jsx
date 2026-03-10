@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Mic, ShieldAlert, ShieldCheck, Square, Settings, X, ChevronDown } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { screeningApi } from "@/services/api";
+import { useLanguage } from "@/i18n/language";
 
 /* ─── constants ──────────────────────────────────────────────── */
 const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2 };
@@ -152,6 +153,7 @@ function VoiceWave({ active, color = "#3b82f6" }) {
 }
 /* ─── transcript bubble ──────────────────────────────────────── */
 function TranscriptMsg({ line }) {
+  const { locale } = useLanguage();
   const isAi = line.speaker === "ai";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, animation: "msgSlideIn 0.3s ease forwards" }}>
@@ -166,6 +168,7 @@ function TranscriptMsg({ line }) {
 }
 /* ─── setup modal ────────────────────────────────────────────── */
 function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorkerId, workerDraft, setWorkerDraft, assignment, setAssignment, onStart, isSubmitting, session }) {
+  const { locale } = useLanguage();
   const workerOptions = useMemo(() => workers.map((worker) => ({ id: worker.id, label: `${worker.name} | ${worker.specialization}` })), [workers]);
   const field = { width: "100%", padding: "10px 12px", boxSizing: "border-box", background: "#ffffff", border: "1px solid rgba(35,49,79,0.12)", borderRadius: 14, color: "#23314f", fontSize: 13, outline: "none", fontFamily: "inherit" };
   if (!open) return null;
@@ -174,30 +177,30 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
       <div onClick={(event) => event.stopPropagation()} style={{ background: "#ffffff", border: "1px solid rgba(35,49,79,0.1)", borderRadius: 24, padding: "28px 24px", width: "100%", maxWidth: 460, boxShadow: "0 32px 80px rgba(35,49,79,0.18)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: 0 }}>Configure</p>
-            <h2 style={{ fontSize: 22, fontFamily: "Fraunces, serif", color: "#23314f", margin: "4px 0 0" }}>Session Setup</h2>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: 0 }}>{"Configure"}</p>
+            <h2 style={{ fontSize: 22, fontFamily: "Fraunces, serif", color: "#23314f", margin: "4px 0 0" }}>{"Session Setup"}</h2>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#71675d", cursor: "pointer", padding: 4 }}><X size={20} /></button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>Worker</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{"Worker"}</label>
             <select value={selectedWorkerId} onChange={(event) => setSelectedWorkerId(event.target.value)} style={field}>
-              <option value="">Create new worker</option>
+              <option value="">{"Create new worker"}</option>
               {workerOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
             </select>
           </div>
           {!selectedWorkerId && (<>
-            <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Worker full name *" style={field} />
-            <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder="Specialization" style={field} />
-            <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder="Years of experience" style={field} />
+            <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder={"Worker full name *"} style={field} />
+            <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder={"Specialization"} style={field} />
+            <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder={"Years of experience"} style={field} />
           </>)}
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>Assignment</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{"Assignment"}</label>
             <textarea value={assignment} onChange={(event) => setAssignment(event.target.value)} rows={3} style={{ ...field, resize: "vertical" }} />
           </div>
           <button onClick={onStart} disabled={isSubmitting} style={{ padding: "12px", borderRadius: 999, border: "none", background: isSubmitting ? "#cbd5e1" : "linear-gradient(135deg,#23314f,#3b82f6)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: isSubmitting ? "not-allowed" : "pointer", letterSpacing: 0.5, marginTop: 4 }}>
-            {isSubmitting ? "Starting..." : session?.status === "live" ? "Restart Session" : "Start Live Session"}
+            {isSubmitting ? ("Starting...") : session?.status === "live" ? ("Restart Session") : ("Start Live Session")}
           </button>
         </div>
       </div>
@@ -208,6 +211,7 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
    MAIN PAGE
 ══════════════════════════════════════════════════════════════ */
 export default function ScreeningRoomPage() {
+  const { locale } = useLanguage();
   const [workers, setWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [workerDraft, setWorkerDraft] = useState(defaultWorker);
@@ -363,9 +367,19 @@ export default function ScreeningRoomPage() {
     if (!isVoiceEnabled || !text) return;
     setAiSpeaking(true);
     const msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 1; msg.pitch = 1;
+    // Use Hindi voice when locale is Hindi
+    msg.lang = locale === "hi" ? "hi-IN" : "en-US";
+    msg.rate = locale === "hi" ? 0.92 : 1;
+    msg.pitch = 1;
     msg.onend = () => setAiSpeaking(false);
+    msg.onerror = () => setAiSpeaking(false);
     window.speechSynthesis.cancel();
+    // Pick best available voice for the language
+    const voices = window.speechSynthesis.getVoices();
+    const langPrefix = locale === "hi" ? "hi" : "en";
+    const preferred = voices.find(v => v.lang.startsWith(langPrefix) && v.localService)
+      || voices.find(v => v.lang.startsWith(langPrefix));
+    if (preferred) msg.voice = preferred;
     window.speechSynthesis.speak(msg);
   };
 
@@ -379,7 +393,7 @@ export default function ScreeningRoomPage() {
         const created = await screeningApi.createWorker({ name: workerDraft.name.trim(), specialization: workerDraft.specialization.trim(), experience_years: Number(workerDraft.experience_years) || 0 });
         workerId = created.id; setSelectedWorkerId(created.id); setWorkers(p => [created, ...p]);
       }
-      const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() });
+      const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() }, locale);
       resetIntegrityState();
       setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
@@ -396,20 +410,21 @@ export default function ScreeningRoomPage() {
     setIsSubmitting(true);
     try {
       setTranscript(p => [...p, { speaker: "worker", text, timestamp: new Date().toISOString() }]);
-      const res = await screeningApi.sendTurn(session.id, { worker_text: text });
+      const res = await screeningApi.sendTurn(session.id, { worker_text: text }, locale);
       setCurrentQuestion(res.ai_question); setLiveScore(res.live_score);
       setTranscript(p => [...p, { speaker: "ai", text: res.ai_question, timestamp: new Date().toISOString() }]);
       speakAi(res.ai_question);
-      toast.success(res.coach_note || "AI generated next question.");
+      toast.success(res.coach_note || ("AI generated next question."));
     } catch { toast.error("Could not send worker response."); }
     finally { setIsSubmitting(false); setIsListening(false); }
   };
 
   const startVoiceInput = () => {
-    if (integrityPaused) { toast.error("Interview paused."); return; }
+    if (integrityPaused) { toast.error(locale === "hi" ? "इंटरव्यू रुका हुआ है।" : "Interview paused."); return; }
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { toast.error("Speech recognition not supported."); return; }
-    const rec = new SR(); rec.continuous = false; rec.interimResults = true; rec.lang = "en-US";
+    if (!SR) { toast.error(locale === "hi" ? "Voice recognition इस browser में काम नहीं करता।" : "Speech recognition not supported."); return; }
+    const rec = new SR(); rec.continuous = false; rec.interimResults = true;
+    rec.lang = locale === "hi" ? "hi-IN" : "en-US";
     let final = ""; setIsListening(true);
     rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) final += e.results[i][0].transcript + " "; };
     rec.onerror = () => { setIsListening(false); toast.error("Voice capture failed."); };
@@ -440,7 +455,7 @@ export default function ScreeningRoomPage() {
     if (!session) return;
     setIsSubmitting(true);
     try {
-      const done = await screeningApi.completeSession(session.id);
+      const done = await screeningApi.completeSession(session.id, locale);
       setSession(done.session); setIntegrityLog(done.session.integrity_log || integrityLog);
       setLiveScore(done.session.live_score); setSessionDone(true);
       toast.success(`Screening complete: ${done.session.recommendation.toUpperCase()}`);
@@ -498,7 +513,7 @@ export default function ScreeningRoomPage() {
           }}>
             <div style={{ padding: "14px 14px 8px", borderBottom: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "rgba(113,103,93,0.7)", margin: 0 }}>
-                Session Progress
+                {"Session Progress"}
               </p>
             </div>
 
@@ -509,9 +524,9 @@ export default function ScreeningRoomPage() {
                 { label: "Integrity monitor on", done: integrityReady,                                sub: "MediaPipe running" },
                 { label: "First question asked", done: transcript.length > 0,                         sub: "AI has spoken" },
                 { label: "Worker responded",     done: transcript.some(t => t.speaker === "worker"),  sub: "First answer captured" },
-                { label: "3+ exchanges",         done: transcript.length >= 6,                        sub: `${Math.min(transcript.length, 6)}/6 messages` },
-                { label: "Snapshot captured",    done: !!latestSnapshot,                              sub: latestSnapshot ? `Score ${Math.round(latestSnapshot.quality_score)}%` : "Not yet" },
-                { label: "Session complete",     done: sessionDone,                                   sub: sessionDone ? `Final: ${Math.round(liveScore)}%` : "End to finish" },
+                { label: "3+ exchanges",         done: transcript.length >= 6,                        sub: `${Math.min(transcript.length, 6)}/6 ${"messages"}` },
+                { label: "Snapshot captured",    done: !!latestSnapshot,                              sub: latestSnapshot ? `${"Score"} ${Math.round(latestSnapshot.quality_score)}%` : ("Not yet") },
+                { label: "Session complete",     done: sessionDone,                                   sub: sessionDone ? `${"Final"}: ${Math.round(liveScore)}%` : ("End to finish") },
               ].map((task, i) => (
                 <div key={i} style={{
                   display: "flex", gap: 9, padding: "8px 6px",
@@ -550,7 +565,7 @@ export default function ScreeningRoomPage() {
 
                         <div style={{ padding: "10px 12px 12px", borderTop: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.7)" }}>AI Score</span>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.7)" }}>{"AI Score"}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
               </div>
               <div style={{ height: 3, background: "rgba(35,49,79,0.08)", borderRadius: 999, overflow: "hidden" }}>
@@ -559,12 +574,12 @@ export default function ScreeningRoomPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
                 <button onClick={() => setSetupOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(35,49,79,0.14)", background: "#ffffff", color: "#23314f", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                   <Settings size={12} />
-                  {session ? "Reconfigure" : "Setup Session"}
+                  {session ? ("Reconfigure") : ("Setup Session")}
                 </button>
                 {isSessionLive && (
                   <button onClick={finishScreening} disabled={isSubmitting} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(59,130,246,0.2)", background: "rgba(59,130,246,0.08)", color: "#3b82f6", fontSize: 12, fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer" }}>
                     <Square size={10} fill="#3b82f6" />
-                    End Session
+                    {"End Session"}
                   </button>
                 )}
               </div>
@@ -590,17 +605,17 @@ export default function ScreeningRoomPage() {
 
               <div style={{ textAlign: "center", maxWidth: 400 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(59,130,246,0.72)", margin: "0 0 8px" }}>
-                  Current Question
+                  {"Current Question"}
                 </p>
                 <p style={{ fontSize: "clamp(13px,1.6vw,15px)", color: "#71675d", lineHeight: 1.75, margin: 0, minHeight: 42 }}>
-                  {currentQuestion || (session ? "Waiting for AI..." : "Set up a session to begin.")}
+                  {currentQuestion || (session ? ("Waiting for AI...") : ("Set up a session to begin."))}
                 </p>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <VoiceWave active={aiSpeaking} color="#3b82f6" />
                 <span style={{ fontSize: 9, color: "rgba(59,130,246,0.65)", letterSpacing: 2, fontWeight: 700, textTransform: "uppercase" }}>
-                  {aiSpeaking ? "AI Speaking" : "Idle"}
+                  {aiSpeaking ? ("AI Speaking") : "Idle"}
                 </span>
               </div>
             </div>
@@ -611,15 +626,15 @@ export default function ScreeningRoomPage() {
             <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
               <div style={{ padding: "10px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.72)" }}>
-                  Live Transcript
+                  {"Live Transcript"}
                 </span>
-                <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} total</span>
+                <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} {"total"}</span>
               </div>
 
               <div ref={transcriptListRef} style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overscrollBehavior: "contain" }}>
                 {transcript.length === 0 ? (
                   <p style={{ fontSize: 12, color: "rgba(113,103,93,0.6)", textAlign: "center", marginTop: 20, fontStyle: "italic" }}>
-                    Transcript appears after session starts.
+                    {"Transcript appears after session starts."}
                   </p>
                 ) : (
                   visibleTranscript.map((line, i) => <TranscriptMsg key={`${line.timestamp}-${i}`} line={line} />)
@@ -636,10 +651,10 @@ export default function ScreeningRoomPage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
-                    Voice Capture
+                    {"Voice Capture"}
                   </p>
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                    {integrityPaused ? "Interview paused until integrity clears." : isListening ? "Listening for the worker response..." : isSessionLive ? "Tap the mic to capture the next spoken answer." : "Start a session to enable live voice capture."}
+                    {integrityPaused ? ("Interview paused until integrity clears.") : isListening ? ("Listening for the worker response...") : isSessionLive ? ("Tap the mic to capture the next spoken answer.") : ("Start a session to enable live voice capture.")}
                   </p>
                 </div>
                 <button
@@ -694,9 +709,9 @@ export default function ScreeningRoomPage() {
                   position: "absolute", inset: 0, background: "rgba(35,49,79,0.76)",
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24,
                 }}>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", textAlign: "center" }}>Multiple people detected</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", textAlign: "center" }}>{"Multiple people detected"}</p>
                   <p style={{ fontSize: 13, color: "#bfdbfe", textAlign: "center", maxWidth: 280 }}>
-                    Only you should be visible. Pausing in {integrityWarningSeconds}s...
+                    {`Only you should be visible. Pausing in ${integrityWarningSeconds}s...`}
                   </p>
                 </div>
               )}
@@ -708,11 +723,11 @@ export default function ScreeningRoomPage() {
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24,
                 }}>
                   <ShieldAlert size={40} color="#93c5fd" />
-                  <p style={{ fontSize: 17, fontWeight: 700, color: "#dbeafe" }}>Interview Paused</p>
+                  <p style={{ fontSize: 17, fontWeight: 700, color: "#dbeafe" }}>{"Interview Paused"}</p>
                   <p style={{ fontSize: 13, color: "#bfdbfe", textAlign: "center", maxWidth: 300, lineHeight: 1.65 }}>
-                    {integrityPauseReason === "face_absent" ? "Face left the frame. Please return to camera."
-                      : integrityPauseReason === "face_change" ? "Face identity changed. Recruiter verification required."
-                      : "Multiple faces were detected."}
+                    {integrityPauseReason === "face_absent" ? ("Face left the frame. Please return to camera.")
+                      : integrityPauseReason === "face_change" ? ("Face identity changed. Recruiter verification required.")
+                      : ("Multiple faces were detected.")}
                   </p>
                   {integrityPauseReason !== "face_change" && (
                     <button onClick={resumeAfterPause} style={{
@@ -732,12 +747,12 @@ export default function ScreeningRoomPage() {
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24,
                 }}>
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "#93c5fd", margin: 0 }}>
-                    Session Complete
+                    {"Session Complete"}
                   </p>
                   <div style={{ fontSize: 56, fontWeight: 800, color: scoreColor, textShadow: `0 0 48px ${scoreColor}66` }}>
                     {Math.round(liveScore)}%
                   </div>
-                  <p style={{ fontSize: 12, color: "#71675d", margin: 0 }}>Final AI Score</p>
+                  <p style={{ fontSize: 12, color: "#71675d", margin: 0 }}>{"Final AI Score"}</p>
                   {session?.recommendation && (
                     <div style={{
                       padding: "7px 20px", borderRadius: 20,
@@ -765,7 +780,7 @@ export default function ScreeningRoomPage() {
                   animation: isSessionLive ? "recPulse 1.5s ease-in-out infinite" : "none",
                 }} />
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: isSessionLive ? "#dbeafe" : "#334155" }}>
-                  {isSessionLive ? "Recording" : "No Session"}
+                  {isSessionLive ? ("Recording") : ("No Session")}
                 </span>
               </div>
 
@@ -780,7 +795,7 @@ export default function ScreeningRoomPage() {
                 color: integrityReady ? "#3b82f6" : "#3b82f6",
               }}>
                 {integrityReady ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
-                {integrityReady ? "AI Monitor On" : "AI Monitor Off"}
+                {integrityReady ? ("AI Monitor On") : ("AI Monitor Off")}
               </div>
             </div>
 
@@ -807,7 +822,7 @@ export default function ScreeningRoomPage() {
                   </span>
                 </div>
               ) : (
-                <p style={{ fontSize: 11, color: "#71675d", flex: 1, fontStyle: "italic", margin: 0 }}>No snapshot captured yet.</p>
+                <p style={{ fontSize: 11, color: "#71675d", flex: 1, fontStyle: "italic", margin: 0 }}>{"No snapshot captured yet."}</p>
               )}
 
               <button
@@ -842,11 +857,11 @@ export default function ScreeningRoomPage() {
                     fontSize: 11, lineHeight: 2, color: "#71675d", minWidth: 210,
                     boxShadow: "0 18px 48px rgba(35,49,79,0.18)",
                   }}>
-                    <p style={{ margin: 0 }}>Multiface: {integrityLog.multiface_events || 0}</p>
-                    <p style={{ margin: 0 }}>Face absent: {integrityLog.face_absent_events || 0}</p>
-                    <p style={{ margin: 0 }}>Gaze deviation: {integrityLog.gaze_deviation_events || 0}</p>
-                    <p style={{ margin: 0 }}>Face change: {integrityLog.face_change_detected ? <span style={{ color: "#3b82f6" }}>warning</span> : "false"}</p>
-                    <p style={{ margin: 0 }}>Flag: <strong style={{ color: integrityLog.overall_flag === "clear" ? "#2563eb" : "#3b82f6" }}>{integrityLog.overall_flag || "clear"}</strong></p>
+                    <p style={{ margin: 0 }}>{"Multiface"}: {integrityLog.multiface_events || 0}</p>
+                    <p style={{ margin: 0 }}>{"Face absent"}: {integrityLog.face_absent_events || 0}</p>
+                    <p style={{ margin: 0 }}>{"Gaze deviation"}: {integrityLog.gaze_deviation_events || 0}</p>
+                    <p style={{ margin: 0 }}>{"Face change"}: {integrityLog.face_change_detected ? <span style={{ color: "#3b82f6" }}>{"warning"}</span> : "false"}</p>
+                    <p style={{ margin: 0 }}>{"Flag"}: <strong style={{ color: integrityLog.overall_flag === "clear" ? "#2563eb" : "#3b82f6" }}>{integrityLog.overall_flag || "clear"}</strong></p>
                   </div>
                 </details>
               )}
@@ -867,6 +882,15 @@ export default function ScreeningRoomPage() {
     </>
   );
 }
+
+
+
+
+
+
+
+
+
 
 
 
