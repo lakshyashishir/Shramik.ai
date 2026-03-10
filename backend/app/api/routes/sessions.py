@@ -69,6 +69,10 @@ def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
         raise HTTPException(status_code=400, detail="Session already completed")
 
     result = run_agent_turn(session, payload.worker_text)
+    new_score = round(
+        max(0.0, min(100.0, session.live_score + result["score_delta"])),
+        2,
+    )
     updated = session.model_copy(
         update={
             "transcript": [
@@ -88,7 +92,7 @@ def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
                 ),
             ],
             "current_phase": result["phase"],
-            "live_score": min(100.0, round(session.live_score + 2.5, 2)),
+            "live_score": new_score,
         }
     )
     sessions[session_id] = updated
@@ -109,7 +113,7 @@ def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> Snapshot
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    snapshot = build_snapshot_feedback(payload.note, session.live_score)
+    snapshot = build_snapshot_feedback(payload.note, session.live_score, payload.image_data)
     updated = session.model_copy(
         update={
             "snapshot_feedback": [*session.snapshot_feedback, snapshot],
