@@ -13,9 +13,9 @@ import { LanguageProvider, useLanguage } from "@/i18n/language";
 const ROLES = ["worker", "recruiter", "admin"];
 
 const roleConfig = {
-  worker:    { label: "Worker",    labelHi: "श्रमिक",   color: "#2563eb", nav: ["/", "/jobs"] },
-  recruiter: { label: "Recruiter", labelHi: "भर्तीकर्ता", color: "#7c3aed", nav: ["/", "/screening"] },
-  admin:     { label: "Admin",     labelHi: "एडमिन",    color: "#0f766e", nav: ["/", "/screening", "/admin"] },
+  worker:    { label: "Worker",    labelHi: "श्रमिक",    color: "#2563eb", nav: ["/screening", "/jobs"] },
+  recruiter: { label: "Recruiter", labelHi: "भर्तीकर्ता", color: "#7c3aed", nav: ["/jobs"] },
+  admin:     { label: "Admin",     labelHi: "एडमिन",    color: "#0f766e", nav: ["/admin"] },
 };
 
 const RoleContext = createContext(null);
@@ -64,7 +64,7 @@ function RoleToggle({ compact = false }) {
   const handleRole = (r) => {
     setRole(r);
     // Auto-navigate to the primary page for that role
-    const primary = { worker: "/jobs", recruiter: "/screening", admin: "/admin" }[r];
+    const primary = { worker: "/screening", recruiter: "/jobs", admin: "/admin" }[r];
     navigate(primary);
   };
 
@@ -203,7 +203,6 @@ function AppShell() {
       {!hideNavigation && <MainNavigation />}
       {hideNavigation && (
         <div className="fixed right-4 top-4 z-40 flex items-center gap-2">
-          <RoleToggle compact />
           <LanguageToggle compact />
         </div>
       )}
