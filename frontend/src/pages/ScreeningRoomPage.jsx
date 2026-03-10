@@ -328,6 +328,7 @@ export default function ScreeningRoomPage() {
   const [showTextFallback, setShowTextFallback] = useState(false);
   const [textFallbackInput, setTextFallbackInput] = useState("");
   const [currentPhase, setCurrentPhase] = useState("intro");
+  const [handOverlayOn, setHandOverlayOn] = useState(true);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
