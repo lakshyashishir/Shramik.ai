@@ -11,6 +11,22 @@ const INTEGRITY_POLL_MS = 500;
 const MULTIFACE_WARNING_MS = 3000;
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite";
+const HAND_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
+const HAND_THEME = {
+  pointColor: "rgba(34,197,94,0.75)",
+  lineColor: "rgba(34,197,94,0.45)",
+  pointRadius: 3,
+  lineWidth: 1.6,
+};
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [5, 9], [9, 10], [10, 11], [11, 12],
+  [9, 13], [13, 14], [14, 15], [15, 16],
+  [13, 17], [17, 18], [18, 19], [19, 20],
+  [0, 17],
+];
 
 /* ─── face helpers ───────────────────────────────────────────── */
 function toPointDistance(a, b) {
@@ -38,6 +54,40 @@ function faceChangeScore(baseline, next) {
     Math.abs(next.noseXNorm - baseline.noseXNorm) * 0.3 +
     Math.abs(next.noseYNorm - baseline.noseYNorm) * 0.25
   );
+}
+
+function drawHandOverlay(ctx, handLandmarks, videoW, videoH, canvasW, canvasH) {
+  const scale = Math.max(canvasW / Math.max(videoW, 1), canvasH / Math.max(videoH, 1));
+  const scaledW = videoW * scale;
+  const scaledH = videoH * scale;
+  const offsetX = (canvasW - scaledW) / 2;
+  const offsetY = (canvasH - scaledH) / 2;
+  const toCanvas = (pt) => ({
+    x: pt.x * scaledW + offsetX,
+    y: pt.y * scaledH + offsetY,
+  });
+
+  ctx.strokeStyle = HAND_THEME.lineColor;
+  ctx.lineWidth = HAND_THEME.lineWidth;
+  HAND_CONNECTIONS.forEach(([a, b]) => {
+    const pa = handLandmarks[a];
+    const pb = handLandmarks[b];
+    if (!pa || !pb) return;
+    const ca = toCanvas(pa);
+    const cb = toCanvas(pb);
+    ctx.beginPath();
+    ctx.moveTo(ca.x, ca.y);
+    ctx.lineTo(cb.x, cb.y);
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = HAND_THEME.pointColor;
+  handLandmarks.forEach((pt) => {
+    const c = toCanvas(pt);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, HAND_THEME.pointRadius, 0, Math.PI * 2);
+    ctx.fill();
+  });
 }
 
 /* ─── AI Orb ─────────────────────────────────────────────────── */
@@ -237,14 +287,20 @@ export default function ScreeningRoomPage() {
   const [integrityWarningSeconds, setIntegrityWarningSeconds] = useState(0);
   const [integrityReady, setIntegrityReady] = useState(false);
   const [integrityError, setIntegrityError] = useState("");
+  const [handOverlayOn, setHandOverlayOn] = useState(true);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const handCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const autoSnapshotRef = useRef(null);
   const integrityIntervalRef = useRef(null);
   const detectorRef = useRef(null);
   const detectionBusyRef = useRef(false);
+  const handLandmarkerRef = useRef(null);
+  const handBusyRef = useRef(false);
+  const handRafRef = useRef(null);
+  const lastHandFrameAtRef = useRef(0);
   const multifaceDeadlineRef = useRef(null);
   const faceAbsentActiveRef = useRef(false);
   const baselineSignatureRef = useRef(null);
@@ -277,6 +333,8 @@ export default function ScreeningRoomPage() {
       clearInterval(autoSnapshotRef.current);
       clearInterval(integrityIntervalRef.current);
       detectorRef.current?.close?.();
+      handLandmarkerRef.current?.close?.();
+      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
       window.speechSynthesis.cancel();
     };
   }, []);
@@ -306,6 +364,72 @@ export default function ScreeningRoomPage() {
     })();
     return () => { cancelled = true; clearInterval(integrityIntervalRef.current); detectorRef.current?.close?.(); detectorRef.current = null; setIntegrityReady(false); };
   }, [isSessionLive, cameraReady]);
+
+  useEffect(() => {
+    if (!cameraReady || !videoRef.current || !handOverlayOn) {
+      handLandmarkerRef.current?.close?.(); handLandmarkerRef.current = null;
+      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
+      if (handCanvasRef.current) {
+        const ctx = handCanvasRef.current.getContext("2d");
+        ctx?.clearRect(0, 0, handCanvasRef.current.width || 0, handCanvasRef.current.height || 0);
+      }
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const vision = await import("@mediapipe/tasks-vision");
+        const fileset = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+        const handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: HAND_MODEL_URL },
+          runningMode: "VIDEO",
+          numHands: 2,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+        if (cancelled) { handLandmarker.close(); return; }
+        handLandmarkerRef.current = handLandmarker;
+        const loop = () => {
+          if (cancelled) return;
+          handRafRef.current = requestAnimationFrame(loop);
+          if (handBusyRef.current || !handLandmarkerRef.current || !videoRef.current || !handCanvasRef.current) return;
+          if (videoRef.current.readyState < 2 || videoRef.current.videoWidth < 32) return;
+          const now = performance.now();
+          if (now - lastHandFrameAtRef.current < 33) return;
+          lastHandFrameAtRef.current = now;
+          handBusyRef.current = true;
+          try {
+            const result = handLandmarkerRef.current.detectForVideo(videoRef.current, now);
+            const canvas = handCanvasRef.current;
+            const video = videoRef.current;
+            const ctx = canvas.getContext("2d");
+            const targetW = canvas.clientWidth || video.videoWidth || 1280;
+            const targetH = canvas.clientHeight || video.videoHeight || 720;
+            canvas.width = targetW;
+            canvas.height = targetH;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            (result.landmarks || []).forEach((handLandmarks) => {
+              drawHandOverlay(
+                ctx,
+                handLandmarks,
+                video.videoWidth || targetW,
+                video.videoHeight || targetH,
+                targetW,
+                targetH
+              );
+            });
+          } catch { } finally { handBusyRef.current = false; }
+        };
+        loop();
+      } catch { }
+    })();
+    return () => {
+      cancelled = true;
+      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
+      handLandmarkerRef.current?.close?.(); handLandmarkerRef.current = null;
+    };
+  }, [cameraReady, handOverlayOn]);
 
   const postIntegrityEvent = async (event, details = {}, throttleMs = 0) => {
     if (!session?.id) return null;
@@ -690,6 +814,20 @@ export default function ScreeningRoomPage() {
                 data-testid="worker-live-video"
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)" }}
               />
+              {handOverlayOn && (
+                <canvas
+                  ref={handCanvasRef}
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    pointerEvents: "none",
+                    transform: "scaleX(-1)",
+                  }}
+                />
+              )}
 
               {/* camera error */}
               {cameraError && (
@@ -797,6 +935,24 @@ export default function ScreeningRoomPage() {
                 {integrityReady ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
                 {integrityReady ? ("AI Monitor On") : ("AI Monitor Off")}
               </div>
+
+              <button
+                onClick={() => setHandOverlayOn((prev) => !prev)}
+                style={{
+                  position: "absolute", top: 46, right: 14,
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "5px 11px", borderRadius: 20,
+                  background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)",
+                  border: `1px solid ${handOverlayOn ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.07)"}`,
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase",
+                  color: handOverlayOn ? "#bbf7d0" : "#334155",
+                  cursor: "pointer",
+                }}
+                aria-pressed={handOverlayOn}
+                title="Toggle hand landmarks"
+              >
+                Hands {handOverlayOn ? ("On") : ("Off")}
+              </button>
             </div>
 
             {/* bottom strip */}
@@ -882,12 +1038,6 @@ export default function ScreeningRoomPage() {
     </>
   );
 }
-
-
-
-
-
-
 
 
 
