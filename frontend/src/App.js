@@ -1,5 +1,5 @@
-﻿import "@/App.css";
-import { BrowserRouter, NavLink, Route, Routes } from "react-router-dom";
+import "@/App.css";
+import { BrowserRouter, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import LandingPage from "@/pages/LandingPage";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
@@ -24,7 +24,7 @@ function MainNavigation() {
           </span>
           <div>
             <p className="font-heading text-xl leading-none">Shramik.ai</p>
-            <p className="text-xs text-muted-foreground">Tailoring Skill Assessment</p>
+            <p className="text-xs text-muted-foreground">Live skill assessment platform</p>
           </div>
         </div>
 
@@ -50,19 +50,28 @@ function MainNavigation() {
   );
 }
 
+function AppShell() {
+  const location = useLocation();
+  const hideNavigation = location.pathname === "/screening";
+
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      {!hideNavigation && <MainNavigation />}
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/screening" element={<ScreeningRoomPage />} />
+        <Route path="/jobs" element={<TailorBoard />} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
+      </Routes>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <BrowserRouter>
-        <div className="min-h-screen bg-background text-foreground">
-          <MainNavigation />
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/screening" element={<ScreeningRoomPage />} />
-	    <Route path="/jobs" element={<TailorBoard />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
-          </Routes>
-        </div>
+        <AppShell />
       </BrowserRouter>
       <Toaster position="top-right" richColors />
     </ThemeProvider>

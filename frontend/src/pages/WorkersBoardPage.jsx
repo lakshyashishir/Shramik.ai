@@ -1,6 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-const SKILLS = ["All", "Bridal Wear", "Alterations", "Industrial Stitching", "Embroidery", "Leather Work", "Knitwear", "Suit Tailoring", "Children's Wear", "Pattern Making"];
+const palette = {
+  bg: "#ffffff",
+  panel: "#ffffff",
+  panelAlt: "#ffffff",
+  border: "#dbe4f0",
+  text: "#23314f",
+  muted: "#64748b",
+  soft: "#ffffff",
+  primary: "#23314f",
+  accent: "#3b82f6",
+  accentSoft: "rgba(59, 130, 246, 0.12)",
+  success: "#3b82f6",
+  successSoft: "rgba(59, 130, 246, 0.08)",
+};
+
+const SKILLS = [
+  "All",
+  "Bridal Wear",
+  "Alterations",
+  "Industrial Stitching",
+  "Embroidery",
+  "Leather Work",
+  "Knitwear",
+  "Suit Tailoring",
+  "Children's Wear",
+  "Pattern Making",
+];
 
 const TAILORS = [
   {
@@ -15,8 +41,9 @@ const TAILORS = [
     bio: "Crafting heirloom-quality bridal pieces with intricate zardozi embroidery for over 9 years.",
     available: true,
     completedJobs: 318,
+    hourlyRate: 950,
     avatar: "PM",
-    color: "#C8845A",
+    color: "#3b82f6",
   },
   {
     id: 8,
@@ -27,30 +54,41 @@ const TAILORS = [
     rating: 4.7,
     reviews: 93,
     skills: ["Children's Wear", "Alterations", "Embroidery"],
-    bio: "Making the most adorable, durable, and safe garments for little ones aged 0–12 years.",
+    bio: "Making durable and comfortable garments for children, school uniforms, and small-batch custom orders.",
     available: true,
     completedJobs: 197,
+    hourlyRate: 720,
     avatar: "NP",
-    color: "#9E6B4A",
+    color: "#2563eb",
   },
 ];
 
 const JOBS = [
-  { id: 1, title: "Bridal Lehenga Embroidery", budget: "Rs. 2000–4000", skill: "Embroidery", postedAgo: "2h", urgent: true },
-  { id: 2, title: "10 Suit Alterations (Corporate)", budget: "Rs.1500", skill: "Alterations", postedAgo: "5h", urgent: false },
-  { id: 3, title: "Pattern Making — SS25 Collection", budget: "Rs.5000–8000", skill: "Pattern Making", postedAgo: "1d", urgent: false },
-  { id: 4, title: "Leather Jacket Repair & Restoration", budget: "Rs.800–1200", skill: "Leather Work", postedAgo: "3h", urgent: true },
-  { id: 5, title: "Children's School Uniform × 30 pcs", budget: "Rs.600-800", skill: "Children's Wear", postedAgo: "2d", urgent: false },
+  { id: 1, title: "Bridal Lehenga Embroidery", budget: "Rs. 2000-4000", skill: "Embroidery", postedAgo: "2h", urgent: true },
+  { id: 2, title: "10 Suit Alterations (Corporate)", budget: "Rs. 1500", skill: "Alterations", postedAgo: "5h", urgent: false },
+  { id: 3, title: "Pattern Making - SS25 Collection", budget: "Rs. 5000-8000", skill: "Pattern Making", postedAgo: "1d", urgent: false },
+  { id: 4, title: "Leather Jacket Repair and Restoration", budget: "Rs. 800-1200", skill: "Leather Work", postedAgo: "3h", urgent: true },
+  { id: 5, title: "Children's School Uniform x 30 pcs", budget: "Rs. 600-800", skill: "Children's Wear", postedAgo: "2d", urgent: false },
 ];
+
+const inputStyle = {
+  width: "100%",
+  padding: "10px 12px",
+  border: `1px solid ${palette.border}`,
+  borderRadius: 14,
+  fontSize: 14,
+  background: palette.panel,
+  color: palette.text,
+  outline: "none",
+  boxSizing: "border-box",
+  fontFamily: "Manrope, sans-serif",
+  resize: "vertical",
+};
 
 function StarRating({ rating }) {
   return (
-    <span style={{ letterSpacing: 1, fontSize: 13, color: "#C8845A" }}>
-      {"★".repeat(Math.floor(rating))}
-      {rating % 1 >= 0.5 ? "½" : ""}
-      <span style={{ color: "#CCC5B5", marginLeft: 5, fontFamily: "Georgia, serif", fontSize: 12 }}>
-        {rating.toFixed(1)}
-      </span>
+    <span style={{ fontSize: 13, color: palette.accent, fontWeight: 700 }}>
+      Rating {rating.toFixed(1)}
     </span>
   );
 }
@@ -59,164 +97,203 @@ function TailorCard({ tailor, onHire }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
+    <article
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: "#FFFDF7",
-        border: `1.5px solid ${hovered ? tailor.color : "#E8E0D0"}`,
-        borderRadius: 16,
+        background: palette.panel,
+        border: `1px solid ${hovered ? tailor.color : palette.border}`,
+        borderRadius: 24,
         padding: "24px 22px",
         display: "flex",
         flexDirection: "column",
         gap: 14,
-        cursor: "default",
         transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
-        boxShadow: hovered ? `0 8px 32px ${tailor.color}22` : "0 2px 12px #00000008",
-        transform: hovered ? "translateY(-3px)" : "none",
+        boxShadow: hovered ? `0 18px 42px ${tailor.color}22` : "0 10px 28px rgba(35,49,79,0.06)",
+        transform: hovered ? "translateY(-2px)" : "none",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* Decorative corner */}
-      <div style={{
-        position: "absolute", top: 0, right: 0,
-        width: 60, height: 60,
-        background: `${tailor.color}12`,
-        borderRadius: "0 16px 0 60px",
-        pointerEvents: "none",
-      }} />
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: 72,
+          height: 72,
+          background: `${tailor.color}14`,
+          borderRadius: "0 24px 0 72px",
+          pointerEvents: "none",
+        }}
+      />
 
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: 14,
-          background: `${tailor.color}22`,
-          border: `2px solid ${tailor.color}55`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'Playfair Display', Georgia, serif",
-          fontWeight: 700, fontSize: 17,
-          color: tailor.color, flexShrink: 0,
-          letterSpacing: 1,
-        }}>
+        <div
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: 18,
+            background: `${tailor.color}1a`,
+            border: `1px solid ${tailor.color}40`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontFamily: "Fraunces, serif",
+            fontWeight: 700,
+            fontSize: 18,
+            color: tailor.color,
+            flexShrink: 0,
+          }}
+        >
           {tailor.avatar}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <h3 style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontSize: 17, fontWeight: 700,
-              color: "#2C1810", margin: 0,
-            }}>{tailor.name}</h3>
-            <span style={{
-              display: "inline-block", fontSize: 10, fontWeight: 700,
-              letterSpacing: 1.2, textTransform: "uppercase",
-              padding: "2px 8px", borderRadius: 20,
-              background: tailor.available ? "#D4EDDA" : "#F8D7D7",
-              color: tailor.available ? "#2D6A4F" : "#A33",
-            }}>
+            <h3 style={{ fontFamily: "Fraunces, serif", fontSize: 22, color: palette.text, margin: 0 }}>
+              {tailor.name}
+            </h3>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "4px 10px",
+                borderRadius: 999,
+                background: tailor.available ? palette.successSoft : "rgba(35,49,79,0.06)",
+                color: tailor.available ? palette.success : palette.muted,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+              }}
+            >
               {tailor.available ? "Available" : "Busy"}
             </span>
           </div>
-          <p style={{ margin: "3px 0 0", fontSize: 12.5, color: "#8A7060" }}>
-            📍 {tailor.location} · {tailor.experience}y exp
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: palette.muted }}>
+            {tailor.location} | {tailor.experience} years experience
           </p>
         </div>
       </div>
 
-      {/* Rating */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <StarRating rating={tailor.rating} />
-        <span style={{ fontSize: 12, color: "#9A8870" }}>({tailor.reviews} reviews)</span>
+        <span style={{ fontSize: 12, color: palette.muted }}>{tailor.reviews} reviews</span>
       </div>
 
-      {/* Bio */}
-      <p style={{
-        fontSize: 13, color: "#6A5A4A", lineHeight: 1.6,
-        margin: 0,
-        fontStyle: "italic",
-        fontFamily: "Georgia, serif",
-      }}>
-        "{tailor.bio}"
+      <p style={{ fontSize: 14, color: palette.muted, lineHeight: 1.65, margin: 0 }}>
+        {tailor.bio}
       </p>
 
-      {/* Skills */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {tailor.skills.map(skill => (
-          <span key={skill} style={{
-            fontSize: 11, fontWeight: 600, letterSpacing: 0.5,
-            padding: "3px 10px", borderRadius: 20,
-            background: `${tailor.color}18`,
-            border: `1px solid ${tailor.color}44`,
-            color: tailor.color,
-          }}>{skill}</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {tailor.skills.map((skill) => (
+          <span
+            key={skill}
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: "5px 10px",
+              borderRadius: 999,
+              background: `${tailor.color}12`,
+              border: `1px solid ${tailor.color}30`,
+              color: tailor.color,
+            }}
+          >
+            {skill}
+          </span>
         ))}
       </div>
 
-      {/* Footer */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderTop: "1px dashed #E0D8C8", paddingTop: 12, marginTop: 2,
-      }}>
-        <span style={{ fontSize: 12, color: "#9A8870" }}>
-          🧵 {tailor.completedJobs} jobs done
-        </span>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          paddingTop: 14,
+          borderTop: `1px solid ${palette.border}`,
+        }}
+      >
+        <div>
+          <p style={{ margin: 0, fontSize: 12, color: palette.muted }}>{tailor.completedJobs} jobs completed</p>
+          <p style={{ margin: "4px 0 0", fontSize: 12, color: palette.text, fontWeight: 700 }}>
+            Rs. {tailor.hourlyRate}/hr
+          </p>
+        </div>
         <button
           onClick={() => onHire(tailor)}
           disabled={!tailor.available}
           style={{
-            padding: "7px 20px",
-            borderRadius: 30,
+            padding: "10px 18px",
+            borderRadius: 999,
             border: "none",
-            background: tailor.available ? tailor.color : "#D0C8B8",
-            color: tailor.available ? "#fff" : "#8A8070",
-            fontSize: 13, fontWeight: 700,
+            background: tailor.available ? palette.primary : "#d7ccbf",
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
             cursor: tailor.available ? "pointer" : "not-allowed",
-            fontFamily: "'Playfair Display', Georgia, serif",
-            letterSpacing: 0.5,
-            transition: "opacity 0.15s",
           }}
         >
           {tailor.available ? "Hire Now" : "Unavailable"}
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
 function JobCard({ job }) {
   return (
-    <div style={{
-      background: "#FFFDF7",
-      border: "1.5px solid #E8E0D0",
-      borderLeft: `4px solid ${job.urgent ? "#C8845A" : "#7A9E7E"}`,
-      borderRadius: 12,
-      padding: "14px 16px",
-      display: "flex", flexDirection: "column", gap: 6,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <h4 style={{
-          margin: 0, fontSize: 14, fontWeight: 700,
-          fontFamily: "'Playfair Display', Georgia, serif",
-          color: "#2C1810", flex: 1,
-        }}>{job.title}</h4>
+    <article
+      style={{
+        background: palette.panel,
+        border: `1px solid ${palette.border}`,
+        borderLeft: `4px solid ${job.urgent ? palette.accent : palette.primary}`,
+        borderRadius: 18,
+        padding: "16px 18px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        boxShadow: "0 10px 24px rgba(35,49,79,0.05)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h4 style={{ margin: 0, fontSize: 18, fontFamily: "Fraunces, serif", color: palette.text, flex: 1 }}>
+          {job.title}
+        </h4>
         {job.urgent && (
-          <span style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: 1.5,
-            padding: "2px 7px", borderRadius: 10,
-            background: "#FDEBD0", color: "#C8845A", textTransform: "uppercase",
-          }}>Urgent</span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: 1,
+              padding: "4px 8px",
+              borderRadius: 999,
+              background: palette.accentSoft,
+              color: palette.accent,
+              textTransform: "uppercase",
+            }}
+          >
+            Urgent
+          </span>
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{
-          fontSize: 11, padding: "2px 9px", borderRadius: 20,
-          background: "#EDF5EE", color: "#4A7A5A", fontWeight: 600,
-        }}>{job.skill}</span>
-        <span style={{ fontSize: 12, color: "#8A7060", marginLeft: "auto" }}>💰 {job.budget}</span>
-        <span style={{ fontSize: 11, color: "#AAA" }}>· {job.postedAgo} ago</span>
+        <span
+          style={{
+            fontSize: 11,
+            padding: "5px 10px",
+            borderRadius: 999,
+            background: palette.soft,
+            color: palette.primary,
+            fontWeight: 700,
+          }}
+        >
+          {job.skill}
+        </span>
+        <span style={{ fontSize: 13, color: palette.text, fontWeight: 700, marginLeft: "auto" }}>{job.budget}</span>
+        <span style={{ fontSize: 12, color: palette.muted }}>{job.postedAgo} ago</span>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -232,39 +309,60 @@ function HireModal({ tailor, onClose }) {
   };
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(30,18,10,0.65)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 16,
-    }} onClick={onClose}>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(18, 24, 39, 0.36)",
+        backdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
       <div
-        onClick={e => e.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
         style={{
-          background: "#FFFDF7",
-          borderRadius: 20,
-          padding: "32px 28px",
-          width: "100%", maxWidth: 460,
-          boxShadow: "0 24px 80px #00000033",
-          border: "1.5px solid #E8E0D0",
+          width: "100%",
+          maxWidth: 480,
+          background: palette.panel,
+          border: `1px solid ${palette.border}`,
+          borderRadius: 28,
+          padding: "30px 26px",
+          boxShadow: "0 24px 80px rgba(35,49,79,0.18)",
           position: "relative",
         }}
       >
-        <button onClick={onClose} style={{
-          position: "absolute", top: 16, right: 18,
-          background: "none", border: "none",
-          fontSize: 22, cursor: "pointer", color: "#8A7060",
-        }}>×</button>
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 18,
+            border: "none",
+            background: "none",
+            color: palette.muted,
+            fontSize: 22,
+            cursor: "pointer",
+          }}
+        >
+          x
+        </button>
 
         {!sent ? (
           <>
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#C8845A", margin: "0 0 4px" }}>Hire Request</p>
-              <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: "#2C1810", margin: 0 }}>
+            <div style={{ marginBottom: 22 }}>
+              <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: palette.accent, margin: "0 0 6px" }}>
+                Hire Request
+              </p>
+              <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 28, color: palette.text, margin: 0 }}>
                 Contact {tailor.name}
               </h2>
-              <p style={{ fontSize: 12.5, color: "#8A7060", marginTop: 4 }}>
-                {tailor.specialization} · ${tailor.hourlyRate}/hr
+              <p style={{ fontSize: 13, color: palette.muted, marginTop: 6 }}>
+                {tailor.specialization} | Rs. {tailor.hourlyRate}/hr
               </p>
             </div>
 
@@ -273,16 +371,16 @@ function HireModal({ tailor, onClose }) {
               { label: "Email", key: "email", type: "email", placeholder: "your@email.com" },
               { label: "Project Details", key: "project", type: "textarea", placeholder: "Describe what you need..." },
               { label: "Preferred Start Date", key: "date", type: "date", placeholder: "" },
-              { label: "Budget (USD)", key: "budget", type: "text", placeholder: "e.g. $150–300" },
-            ].map(field => (
+              { label: "Budget", key: "budget", type: "text", placeholder: "e.g. Rs. 1500-3000" },
+            ].map((field) => (
               <div key={field.key} style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: "#5A4A3A", letterSpacing: 0.5, display: "block", marginBottom: 5 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: palette.text, display: "block", marginBottom: 6 }}>
                   {field.label}
                 </label>
                 {field.type === "textarea" ? (
                   <textarea
                     value={form[field.key]}
-                    onChange={e => setForm(p => ({ ...p, [field.key]: e.target.value }))}
+                    onChange={(event) => setForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                     placeholder={field.placeholder}
                     rows={3}
                     style={inputStyle}
@@ -291,7 +389,7 @@ function HireModal({ tailor, onClose }) {
                   <input
                     type={field.type}
                     value={form[field.key]}
-                    onChange={e => setForm(p => ({ ...p, [field.key]: e.target.value }))}
+                    onChange={(event) => setForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                     placeholder={field.placeholder}
                     style={inputStyle}
                   />
@@ -299,50 +397,56 @@ function HireModal({ tailor, onClose }) {
               </div>
             ))}
 
-            <button onClick={handleSubmit} style={{
-              width: "100%", padding: "12px",
-              background: tailor.color, color: "#fff",
-              border: "none", borderRadius: 30,
-              fontSize: 15, fontWeight: 700,
-              fontFamily: "'Playfair Display', Georgia, serif",
-              cursor: "pointer", letterSpacing: 0.5, marginTop: 4,
-            }}>
-              Send Hire Request →
+            <button
+              onClick={handleSubmit}
+              style={{
+                width: "100%",
+                padding: "13px",
+                borderRadius: 999,
+                border: "none",
+                background: palette.primary,
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Send Hire Request
             </button>
           </>
         ) : (
-          <div style={{ textAlign: "center", padding: "20px 0" }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🧵</div>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: "#2C1810", margin: "0 0 8px" }}>
-              Request Sent!
-            </h2>
-            <p style={{ fontSize: 13.5, color: "#6A5A4A", lineHeight: 1.6 }}>
-              {tailor.name} will be notified of your hire request and typically responds within 2–4 hours.
+          <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: palette.success, margin: 0 }}>
+              Request Sent
             </p>
-            <button onClick={onClose} style={{
-              marginTop: 20, padding: "10px 28px",
-              background: tailor.color, color: "#fff",
-              border: "none", borderRadius: 30,
-              fontSize: 14, fontWeight: 700,
-              fontFamily: "'Playfair Display', Georgia, serif",
-              cursor: "pointer",
-            }}>Close</button>
+            <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 28, color: palette.text, margin: "8px 0" }}>
+              Tailor notified
+            </h2>
+            <p style={{ fontSize: 14, color: palette.muted, lineHeight: 1.7 }}>
+              {tailor.name} will receive your request and can respond in the next few hours.
+            </p>
+            <button
+              onClick={onClose}
+              style={{
+                marginTop: 18,
+                padding: "11px 24px",
+                borderRadius: 999,
+                border: "none",
+                background: palette.primary,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-const inputStyle = {
-  width: "100%", padding: "9px 12px",
-  border: "1.5px solid #E0D8C8",
-  borderRadius: 10, fontSize: 13.5,
-  background: "#FEFAF4", color: "#2C1810",
-  outline: "none", boxSizing: "border-box",
-  fontFamily: "Georgia, serif",
-  resize: "vertical",
-};
 
 export default function TailorBoard() {
   const [activeSkill, setActiveSkill] = useState("All");
@@ -355,301 +459,320 @@ export default function TailorBoard() {
   const [postedJobs, setPostedJobs] = useState(JOBS);
   const [jobPosted, setJobPosted] = useState(false);
 
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-  }, []);
-
-  const filtered = TAILORS
-    .filter(t => activeSkill === "All" || t.skills.includes(activeSkill))
-    .filter(t => !availableOnly || t.available)
-    .filter(t => !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.location.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => sortBy === "rating" ? b.rating - a.rating : sortBy === "rate_asc" ? a.hourlyRate - b.hourlyRate : b.hourlyRate - a.hourlyRate);
+  const filtered = TAILORS.filter((tailor) => activeSkill === "All" || tailor.skills.includes(activeSkill))
+    .filter((tailor) => !availableOnly || tailor.available)
+    .filter(
+      (tailor) =>
+        !search ||
+        tailor.name.toLowerCase().includes(search.toLowerCase()) ||
+        tailor.location.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((left, right) => {
+      if (sortBy === "rate_asc") return left.hourlyRate - right.hourlyRate;
+      if (sortBy === "rate_desc") return right.hourlyRate - left.hourlyRate;
+      return right.rating - left.rating;
+    });
 
   const handlePostJob = () => {
     if (!postForm.title || !postForm.description) return;
     const newJob = {
-      id: Date.now(), title: postForm.title,
+      id: Date.now(),
+      title: postForm.title,
       budget: postForm.budget || "Open",
       skill: postForm.skill,
-      postedAgo: "Just now", urgent: false,
+      postedAgo: "Just now",
+      urgent: false,
     };
-    setPostedJobs(p => [newJob, ...p]);
+    setPostedJobs((prev) => [newJob, ...prev]);
     setJobPosted(true);
     setPostForm({ title: "", skill: "Alterations", budget: "", description: "" });
     setTimeout(() => setJobPosted(false), 3000);
   };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#F5F0E8",
-      fontFamily: "Georgia, serif",
-      color: "#2C1810",
-    }}>
-      {/* Header */}
-      <header style={{
-        background: "#2C1810",
-        color: "#F5F0E8",
-        padding: "0 20px",
-        position: "sticky", top: 0, zIndex: 100,
-        borderBottom: "3px solid #C8845A",
-      }}>
-        <div style={{
-          maxWidth: 1200, margin: "0 auto",
-          display: "flex", alignItems: "center",
-          justifyContent: "space-between", flexWrap: "wrap",
-          gap: 10, padding: "14px 0",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 28 }}>🧵</span>
-            <div>
-              <h1 style={{
-                fontFamily: "'Playfair Display', Georgia, serif",
-                fontSize: "clamp(18px, 4vw, 26px)",
-                fontWeight: 700, margin: 0, letterSpacing: -0.5,
-              }}>Job Board</h1>
-              <p style={{ margin: 0, fontSize: 11, color: "#C8A882", letterSpacing: 1.5, textTransform: "uppercase" }}>
-                Artisan Tailor Marketplace
-              </p>
+    <main
+      style={{
+        maxWidth: 1240,
+        margin: "0 auto",
+        padding: "28px 24px 64px",
+        color: palette.text,
+        fontFamily: "Manrope, sans-serif",
+      }}
+    >
+      <section
+        style={{
+          background: palette.panel,
+          border: `1px solid ${palette.border}`,
+          borderRadius: 32,
+          padding: "28px 28px 22px",
+          boxShadow: "0 18px 50px rgba(35,49,79,0.06)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+          <div style={{ maxWidth: 620 }}>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: palette.accent, margin: 0 }}>
+              Verified worker marketplace
+            </p>
+            <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(2rem, 5vw, 3.5rem)", lineHeight: 1.02, margin: "10px 0 12px" }}>
+              Find skilled workers or post practical assignments.
+            </h1>
+            <p style={{ margin: 0, fontSize: 15, color: palette.muted, lineHeight: 1.75 }}>
+              This prototype keeps hiring, screening, and assignment discovery in one place. The layout stays marketplace-first,
+              but the styling now matches the main Shramik.ai product shell.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {[
+              { key: "tailors", label: "Find Workers" },
+              { key: "jobs", label: "Browse Jobs" },
+              { key: "post", label: "Post a Job" },
+            ].map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  padding: "11px 18px",
+                  borderRadius: 999,
+                  border: `1px solid ${activeTab === tab.key ? palette.primary : palette.border}`,
+                  background: activeTab === tab.key ? palette.primary : palette.panel,
+                  color: activeTab === tab.key ? "#fff" : palette.text,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {activeTab === "tailors" && (
+          <div
+            style={{
+              marginTop: 22,
+              borderRadius: 26,
+              padding: "22px 22px 18px",
+              background: "#ffffff",
+              border: `1px solid ${palette.border}`,
+            }}
+          >
+            <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
+              {[
+                ["320+", "Active Workers"],
+                ["12K+", "Jobs Completed"],
+                ["4.8", "Average Rating"],
+              ].map(([value, label]) => (
+                <div key={label}>
+                  <p style={{ margin: 0, fontFamily: "Fraunces, serif", fontSize: 30, color: palette.primary }}>{value}</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", color: palette.muted }}>
+                    {label}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {["tailors", "jobs", "post"].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                style={{
-                  padding: "7px 16px",
-                  borderRadius: 30,
-                  border: `1.5px solid ${activeTab === tab ? "#C8845A" : "#4A3020"}`,
-                  background: activeTab === tab ? "#C8845A" : "transparent",
-                  color: activeTab === tab ? "#fff" : "#C8A882",
-                  fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "'Playfair Display', Georgia, serif",
-                  textTransform: "capitalize",
-                  transition: "all 0.2s",
-                }}
-              >{tab === "post" ? "Post a Job" : tab === "jobs" ? "Browse Jobs" : "Find Tailors"}</button>
-            ))}
-          </div>
-        </div>
-      </header>
+        )}
+      </section>
 
-      {/* Hero */}
-      {activeTab === "tailors" && (
-        <div style={{
-          background: "linear-gradient(135deg, #2C1810 0%, #4A2C18 50%, #3A2010 100%)",
-          color: "#F5F0E8",
-          padding: "clamp(32px, 6vw, 60px) 20px",
-          textAlign: "center",
-          position: "relative", overflow: "hidden",
-        }}>
-          {/* Decorative texture lines */}
-          {[...Array(8)].map((_, i) => (
-            <div key={i} style={{
-              position: "absolute",
-              top: `${10 + i * 12}%`, left: "-5%",
-              width: "110%", height: 1,
-              background: "rgba(200,132,90,0.08)",
-              transform: `rotate(${-2 + i * 0.5}deg)`,
-              pointerEvents: "none",
-            }} />
-          ))}
-          <p style={{ fontSize: 11, letterSpacing: 3, color: "#C8845A", textTransform: "uppercase", margin: "0 0 10px" }}>
-            Hand-picked Craft Professionals
-          </p>
-          <h2 style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: "clamp(26px, 6vw, 52px)",
-            fontWeight: 700, margin: "0 0 14px",
-            lineHeight: 1.15,
-          }}>
-            Hire Skilled Tailors<br />
-            <em style={{ color: "#C8845A" }}>for Any Garment</em>
-          </h2>
-          <p style={{ fontSize: "clamp(13px, 2.5vw, 16px)", color: "#C8A882", maxWidth: 500, margin: "0 auto 24px", lineHeight: 1.7 }}>
-            Connect with verified artisan tailors in India. From home stitching to industrial production, find the perfect craft match.
-          </p>
-          <div style={{ display: "flex", justifyContent: "center", gap: 24, flexWrap: "wrap" }}>
-            {[["320+", "Active Tailors"], ["12K+", "Jobs Done"], ["4.8★", "Avg Rating"]].map(([num, label]) => (
-              <div key={label} style={{ textAlign: "center" }}>
-                <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 26, fontWeight: 700, color: "#C8845A", margin: 0 }}>{num}</p>
-                <p style={{ fontSize: 11, color: "#9A7860", letterSpacing: 1, textTransform: "uppercase", margin: 0 }}>{label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "28px 16px 60px" }}>
-
-        {/* TAILORS TAB */}
+      <section style={{ marginTop: 26 }}>
         {activeTab === "tailors" && (
           <>
-            {/* Filters */}
-            <div style={{
-              background: "#FFFDF7",
-              borderRadius: 16, padding: "18px 20px",
-              border: "1.5px solid #E8E0D0",
-              marginBottom: 24,
-              display: "flex", flexDirection: "column", gap: 14,
-            }}>
+            <div
+              style={{
+                background: palette.panel,
+                borderRadius: 24,
+                padding: "18px 20px",
+                border: `1px solid ${palette.border}`,
+                marginBottom: 20,
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+                boxShadow: "0 10px 28px rgba(35,49,79,0.04)",
+              }}
+            >
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <input
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by name or location..."
-                  style={{
-                    ...inputStyle,
-                    flex: "1 1 200px",
-                    minWidth: 0,
-                    padding: "9px 14px",
-                  }}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name or location"
+                  style={{ ...inputStyle, flex: "1 1 220px", minWidth: 0 }}
                 />
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value)}
-                  style={{ ...inputStyle, flex: "0 0 auto", cursor: "pointer" }}
-                >
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} style={{ ...inputStyle, flex: "0 0 auto", cursor: "pointer" }}>
                   <option value="rating">Sort: Top Rated</option>
-                  <option value="rate_asc">Sort: Price ↑</option>
-                  <option value="rate_desc">Sort: Price ↓</option>
+                  <option value="rate_asc">Sort: Price Low to High</option>
+                  <option value="rate_desc">Sort: Price High to Low</option>
                 </select>
-                <label style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  fontSize: 13, color: "#5A4A3A", cursor: "pointer",
-                  padding: "9px 14px",
-                  background: availableOnly ? "#D4EDDA" : "#F5F0E8",
-                  borderRadius: 10, border: "1.5px solid #E0D8C8",
-                  fontWeight: availableOnly ? 700 : 400,
-                  transition: "all 0.2s",
-                }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    color: palette.text,
+                    cursor: "pointer",
+                    padding: "10px 14px",
+                    background: "#ffffff",
+                    borderRadius: 14,
+                    border: `1px solid ${availableOnly ? palette.primary : palette.border}`,
+                    fontWeight: availableOnly ? 700 : 500,
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={availableOnly}
-                    onChange={e => setAvailableOnly(e.target.checked)}
-                    style={{ accentColor: "#2D6A4F" }}
+                    onChange={(event) => setAvailableOnly(event.target.checked)}
+                    style={{ accentColor: palette.success }}
                   />
                   Available only
                 </label>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {SKILLS.map(skill => (
+                {SKILLS.map((skill) => (
                   <button
                     key={skill}
                     onClick={() => setActiveSkill(skill)}
                     style={{
-                      padding: "5px 14px", borderRadius: 20,
-                      border: `1.5px solid ${activeSkill === skill ? "#C8845A" : "#E0D8C8"}`,
-                      background: activeSkill === skill ? "#C8845A" : "#FEFAF4",
-                      color: activeSkill === skill ? "#fff" : "#6A5A4A",
-                      fontSize: 12, fontWeight: 600, cursor: "pointer",
-                      transition: "all 0.15s",
-                      whiteSpace: "nowrap",
+                      padding: "6px 14px",
+                      borderRadius: 999,
+                      border: `1px solid ${activeSkill === skill ? palette.accent : palette.border}`,
+                      background: activeSkill === skill ? palette.accent : palette.panel,
+                      color: activeSkill === skill ? "#fff" : palette.muted,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
                     }}
-                  >{skill}</button>
+                  >
+                    {skill}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* Results count */}
-            <p style={{ fontSize: 12.5, color: "#9A8870", marginBottom: 16, fontStyle: "italic" }}>
-              Showing {filtered.length} tailor{filtered.length !== 1 ? "s" : ""}
-              {activeSkill !== "All" ? ` · ${activeSkill}` : ""}
-              {availableOnly ? " · Available" : ""}
+            <p style={{ fontSize: 13, color: palette.muted, marginBottom: 18 }}>
+              Showing {filtered.length} worker{filtered.length !== 1 ? "s" : ""}
+              {activeSkill !== "All" ? ` | ${activeSkill}` : ""}
+              {availableOnly ? " | Available" : ""}
             </p>
 
-            {/* Grid */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
-              gap: 20,
-            }}>
-              {filtered.map(tailor => (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+                gap: 20,
+              }}
+            >
+              {filtered.map((tailor) => (
                 <TailorCard key={tailor.id} tailor={tailor} onHire={setSelectedTailor} />
               ))}
               {filtered.length === 0 && (
-                <div style={{
-                  gridColumn: "1 / -1",
-                  textAlign: "center", padding: "60px 20px",
-                  color: "#9A8870",
-                }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>🧵</div>
-                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18 }}>No tailors match your filters</p>
-                  <p style={{ fontSize: 13 }}>Try adjusting your search or skill filter</p>
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    textAlign: "center",
+                    padding: "54px 20px",
+                    background: palette.panel,
+                    border: `1px solid ${palette.border}`,
+                    borderRadius: 24,
+                    color: palette.muted,
+                  }}
+                >
+                  <p style={{ fontFamily: "Fraunces, serif", fontSize: 22, color: palette.text, margin: "0 0 8px" }}>
+                    No workers match the current filters
+                  </p>
+                  <p style={{ margin: 0, fontSize: 14 }}>Try adjusting the search term or skill selection.</p>
                 </div>
               )}
             </div>
           </>
         )}
 
-        {/* JOBS TAB */}
         {activeTab === "jobs" && (
-          <>
-            <div style={{ marginBottom: 24 }}>
-              <p style={{ fontSize: 11, letterSpacing: 2, color: "#C8845A", textTransform: "uppercase", margin: "0 0 6px" }}>Open Opportunities</p>
-              <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(22px, 4vw, 34px)", margin: 0, color: "#2C1810" }}>
-                Browse Available Jobs
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ marginBottom: 10 }}>
+              <p style={{ fontSize: 11, letterSpacing: 2, color: palette.accent, textTransform: "uppercase", margin: "0 0 6px" }}>
+                Open opportunities
+              </p>
+              <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", margin: 0, color: palette.text }}>
+                Browse available jobs
               </h2>
-              <p style={{ fontSize: 13.5, color: "#8A7060", marginTop: 6 }}>Jobs posted by clients looking for skilled tailors</p>
+              <p style={{ fontSize: 14, color: palette.muted, marginTop: 8 }}>
+                Short-term work requests and assignment-based hiring briefs.
+              </p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {postedJobs.map(job => <JobCard key={job.id} job={job} />)}
-            </div>
-          </>
+            {postedJobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
         )}
 
-        {/* POST JOB TAB */}
         {activeTab === "post" && (
-          <div style={{ maxWidth: 600, margin: "0 auto" }}>
-            <div style={{ marginBottom: 28, textAlign: "center" }}>
-              <p style={{ fontSize: 11, letterSpacing: 2, color: "#C8845A", textTransform: "uppercase", margin: "0 0 6px" }}>Reach 320+ Tailors</p>
-              <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(22px, 4vw, 34px)", margin: 0 }}>
-                Post a Job
+          <div style={{ maxWidth: 680, margin: "0 auto" }}>
+            <div style={{ marginBottom: 24, textAlign: "center" }}>
+              <p style={{ fontSize: 11, letterSpacing: 2, color: palette.accent, textTransform: "uppercase", margin: "0 0 6px" }}>
+                Reach skilled workers
+              </p>
+              <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", margin: 0, color: palette.text }}>
+                Post a job
               </h2>
-              <p style={{ fontSize: 13.5, color: "#8A7060", marginTop: 8 }}>Describe your project and let tailors come to you</p>
+              <p style={{ fontSize: 14, color: palette.muted, marginTop: 8 }}>
+                Describe the assignment, budget, and expected output.
+              </p>
             </div>
-            <div style={{
-              background: "#FFFDF7",
-              borderRadius: 20, padding: "28px 24px",
-              border: "1.5px solid #E8E0D0",
-              boxShadow: "0 4px 24px #00000008",
-            }}>
+            <div
+              style={{
+                background: palette.panel,
+                borderRadius: 28,
+                padding: "28px 24px",
+                border: `1px solid ${palette.border}`,
+                boxShadow: "0 12px 28px rgba(35,49,79,0.05)",
+              }}
+            >
               {jobPosted && (
-                <div style={{
-                  background: "#D4EDDA", border: "1.5px solid #A8D5B0",
-                  borderRadius: 12, padding: "12px 16px",
-                  marginBottom: 20, fontSize: 14, color: "#2D6A4F",
-                  fontWeight: 600,
-                }}>
-                  ✓ Job posted successfully! Tailors will be notified.
+                <div
+                  style={{
+                    background: palette.successSoft,
+                    border: "1px solid rgba(59,130,246,0.2)",
+                    borderRadius: 14,
+                    padding: "12px 16px",
+                    marginBottom: 20,
+                    fontSize: 14,
+                    color: palette.success,
+                    fontWeight: 700,
+                  }}
+                >
+                  Job posted successfully. Workers can now discover it.
                 </div>
               )}
               {[
-                { label: "Job Title *", key: "title", type: "text", placeholder: "e.g. Bridal Lehenga Embroidery" },
-                { label: "Required Skill *", key: "skill", type: "select" },
-                { label: "Budget (USD)", key: "budget", type: "text", placeholder: "e.g. Rs. 500-800 or Negotiable" },
-                { label: "Project Description *", key: "description", type: "textarea", placeholder: "Describe the garment, quantity, deadline, and any specific requirements..." },
-              ].map(field => (
+                { label: "Job Title", key: "title", type: "text", placeholder: "e.g. Bridal Lehenga Embroidery" },
+                { label: "Required Skill", key: "skill", type: "select" },
+                { label: "Budget", key: "budget", type: "text", placeholder: "e.g. Rs. 500-800 or negotiable" },
+                {
+                  label: "Project Description",
+                  key: "description",
+                  type: "textarea",
+                  placeholder: "Describe the garment, quantity, deadline, and any specific requirements...",
+                },
+              ].map((field) => (
                 <div key={field.key} style={{ marginBottom: 18 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: "#5A4A3A", letterSpacing: 0.5, display: "block", marginBottom: 6, textTransform: "uppercase" }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: palette.text, display: "block", marginBottom: 6 }}>
                     {field.label}
                   </label>
                   {field.type === "select" ? (
                     <select
                       value={postForm[field.key]}
-                      onChange={e => setPostForm(p => ({ ...p, [field.key]: e.target.value }))}
+                      onChange={(event) => setPostForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                       style={{ ...inputStyle, cursor: "pointer" }}
                     >
-                      {SKILLS.filter(s => s !== "All").map(s => <option key={s}>{s}</option>)}
+                      {SKILLS.filter((skill) => skill !== "All").map((skill) => (
+                        <option key={skill}>{skill}</option>
+                      ))}
                     </select>
                   ) : field.type === "textarea" ? (
                     <textarea
                       value={postForm[field.key]}
-                      onChange={e => setPostForm(p => ({ ...p, [field.key]: e.target.value }))}
+                      onChange={(event) => setPostForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                       placeholder={field.placeholder}
                       rows={4}
                       style={inputStyle}
@@ -658,39 +781,40 @@ export default function TailorBoard() {
                     <input
                       type={field.type}
                       value={postForm[field.key]}
-                      onChange={e => setPostForm(p => ({ ...p, [field.key]: e.target.value }))}
+                      onChange={(event) => setPostForm((prev) => ({ ...prev, [field.key]: event.target.value }))}
                       placeholder={field.placeholder}
                       style={inputStyle}
                     />
                   )}
                 </div>
               ))}
-              <button onClick={handlePostJob} style={{
-                width: "100%", padding: "13px",
-                background: "#2C1810", color: "#F5F0E8",
-                border: "none", borderRadius: 30,
-                fontSize: 16, fontWeight: 700,
-                fontFamily: "'Playfair Display', Georgia, serif",
-                cursor: "pointer", letterSpacing: 0.5,
-                transition: "background 0.2s",
-              }}>
-                Post Job to 320+ Tailors →
+              <button
+                onClick={handlePostJob}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  background: palette.primary,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 999,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Post Job to 320+ Workers
               </button>
             </div>
           </div>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer style={{
-        background: "#2C1810", color: "#C8A882",
-        textAlign: "center", padding: "20px",
-        fontSize: 12, borderTop: "3px solid #C8845A",
-      }}>
-        {" "} Artisan Tailor Marketplace · Connecting Craft Worldwide
-      </footer>
+      </section>
 
       <HireModal tailor={selectedTailor} onClose={() => setSelectedTailor(null)} />
-    </div>
+    </main>
   );
 }
+
+
+
+
+
