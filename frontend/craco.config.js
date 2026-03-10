@@ -30,6 +30,12 @@ const webpackConfig = {
       "@": path.resolve(__dirname, "src"),
     },
     configure: (configObject) => {
+      // Suppress missing source-map warnings from mediapipe and other packages
+      configObject.ignoreWarnings = [
+        ...(configObject.ignoreWarnings || []),
+        /Failed to parse source map/,
+      ];
+
       configObject.watchOptions = {
         ...configObject.watchOptions,
         ignored: [

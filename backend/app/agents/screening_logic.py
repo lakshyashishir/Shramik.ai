@@ -1,36 +1,67 @@
+import json
+from pathlib import Path
+
+from openai import AzureOpenAI
+
+from app.config import settings
 from app.models import Session, SnapshotFeedback, utc_now_iso
 
-OPENING_QUESTIONS = [
-    "Walk me through how you would set up your machine before starting a straight seam.",
-    "How do you check seam allowance and stitch consistency before handing over a piece?",
-    "Describe the first quality checks you do after finishing a stitching assignment.",
-]
+_SYSTEM_PROMPT_PATH = Path(__file__).parent / "interview-system.md"
 
-TURN_LIBRARY = [
-    (
-        "If you notice skipped stitches during production, what would you check first?",
-        "Good. Explain both machine tension and needle inspection.",
-        3.0,
-    ),
-    (
-        "How do you handle fabric edge finishing when the material starts fraying?",
-        "Mention edge finishing, handling technique, and rework prevention.",
-        2.5,
-    ),
-    (
-        "What would you do if the supervisor asks you to increase speed without losing quality?",
-        "Strong answers balance speed with repeatable quality checks.",
-        2.0,
-    ),
-]
+RUBRIC_WEIGHTS = {
+    "stitch_quality": 0.32,
+    "machine_familiarity": 0.26,
+    "technical_knowledge": 0.24,
+    "fabric_material_knowledge": 0.12,
+    "communication_confidence": 0.06,
+}
+
+
+def _get_openai_client() -> AzureOpenAI:
+    return AzureOpenAI(
+        azure_endpoint=settings.azure_openai_endpoint,
+        api_key=settings.azure_openai_api_key,
+        api_version="2024-02-01",
+    )
 
 
 def choose_opening_question(worker_name: str, assignment: str) -> str:
-    return f"Hi {worker_name}, for this assignment, {assignment.lower()}"
+    return (
+        f"Namaste {worker_name}! Shramik.ai screening mein aapka swagat hai. "
+        f"Aaj ka assignment hai: {assignment.lower()}. "
+        "Pehle, aap apne baare mein thoda batayein — aap kahaan se hain, aur kitne saalon se silai-kadhai ka kaam kar rahe hain?"
+    )
 
 
-def next_turn(turn_index: int) -> tuple[str, str, float]:
-    return TURN_LIBRARY[turn_index % len(TURN_LIBRARY)]
+def run_agent_turn(session: Session, worker_text: str) -> dict:
+    """Call GPT-4o with full conversation history. Returns ai_reply, rubric_tag, phase."""
+    system_prompt = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
+
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    for item in session.transcript:
+        role = "assistant" if item.speaker == "ai" else "user"
+        messages.append({"role": role, "content": item.text})
+    messages.append({"role": "user", "content": worker_text})
+
+    client = _get_openai_client()
+    resp = client.chat.completions.create(
+        model=settings.azure_openai_deployment,
+        messages=messages,
+        response_format={"type": "json_object"},
+        temperature=0.3,
+    )
+
+    raw = resp.choices[0].message.content
+    try:
+        result = json.loads(raw)
+    except json.JSONDecodeError:
+        result = {}
+
+    return {
+        "ai_reply": result.get("reply", "Samajh nahi aaya, kripya dobara bolein."),
+        "rubric_tag": result.get("rubric_tag"),
+        "phase": result.get("phase", session.current_phase),
+    }
 
 
 def build_snapshot_feedback(note: str, current_score: float) -> SnapshotFeedback:
@@ -48,27 +79,46 @@ def build_snapshot_feedback(note: str, current_score: float) -> SnapshotFeedback
     )
 
 
+def _rubric_score_from_transcript(session: Session) -> dict[str, float]:
+    """Compute per-rubric score as average acoustic_confidence (×100) for tagged turns."""
+    buckets: dict[str, list[float]] = {k: [] for k in RUBRIC_WEIGHTS}
+
+    for item in session.transcript:
+        tag = item.rubric_tag
+        if tag and tag in buckets and item.acoustic_confidence is not None:
+            buckets[tag].append(item.acoustic_confidence * 100)
+
+    scores: dict[str, float] = {}
+    for tag, values in buckets.items():
+        scores[tag] = round(sum(values) / len(values), 2) if values else round(session.live_score, 2)
+    return scores
+
+
 def finalize_session(session: Session) -> Session:
     snapshot_bonus = 0.0
     if session.snapshot_feedback:
         snapshot_bonus = session.snapshot_feedback[-1].quality_score * 0.15
 
-    technical_precision = min(95.0, round(session.live_score + snapshot_bonus * 0.2, 2))
-    seam_quality_reasoning = min(92.0, round(session.live_score + snapshot_bonus * 0.15, 2))
-    communication = min(90.0, round(session.live_score + 4.0, 2))
-    speed_readiness = min(88.0, round(session.live_score + 2.0, 2))
-    instruction_following = min(91.0, round(session.live_score + 3.0, 2))
+    rubric_raw = _rubric_score_from_transcript(session)
+
+    # Apply snapshot bonus to stitch_quality
+    rubric_raw["stitch_quality"] = min(
+        100.0,
+        round(rubric_raw["stitch_quality"] + snapshot_bonus, 2),
+    )
+    # Add integrity compliance as implicit factor (not in weights but tracked)
     integrity_compliance = round(session.integrity_log.integrity_score * 100, 2)
 
-    rubric = {
-        "technical_precision": technical_precision,
-        "seam_quality_reasoning": seam_quality_reasoning,
-        "communication": communication,
-        "speed_readiness": speed_readiness,
-        "instruction_following": instruction_following,
-        "integrity_compliance": integrity_compliance,
-    }
-    overall = round(sum(rubric.values()) / len(rubric), 2)
+    # Weighted overall
+    overall = round(
+        sum(rubric_raw[k] * w for k, w in RUBRIC_WEIGHTS.items()),
+        2,
+    )
+    # Blend with integrity
+    overall = round(overall * 0.94 + integrity_compliance * 0.06, 2)
+
+    rubric_scores = {**rubric_raw, "integrity_compliance": integrity_compliance}
+
     if session.integrity_log.overall_flag == "critical_flag":
         recommendation = "reject"
         summary = "Face identity changed during interview. Recruiter verification is required before proceeding."
@@ -87,6 +137,6 @@ def finalize_session(session: Session) -> Session:
             "live_score": overall,
             "recommendation": recommendation,
             "summary": summary,
-            "rubric_scores": rubric,
+            "rubric_scores": rubric_scores,
         }
     )

@@ -3,6 +3,44 @@ import { Camera, Mic, ShieldAlert, ShieldCheck, Square, Settings, X, ChevronDown
 import { toast } from "@/components/ui/sonner";
 import { screeningApi } from "@/services/api";
 
+/* ─── WAV encoder (SarvamAI requires wav/mp3, not webm) ─────── */
+async function blobToWav(blob) {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioCtx = new AudioContext();
+  const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+  audioCtx.close();
+
+  const numChannels = 1; // mono — reduce payload size
+  const sampleRate = audioBuffer.sampleRate;
+  const srcData = audioBuffer.getChannelData(0); // use first channel
+  const numSamples = srcData.length;
+
+  const wavBuffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(wavBuffer);
+  const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+
+  writeStr(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeStr(8, "WAVE");
+  writeStr(12, "fmt ");
+  view.setUint32(16, 16, true);       // PCM chunk size
+  view.setUint16(20, 1, true);        // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // byte rate
+  view.setUint16(32, 2, true);        // block align
+  view.setUint16(34, 16, true);       // bits per sample
+  writeStr(36, "data");
+  view.setUint32(40, numSamples * 2, true);
+
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, srcData[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+
+  return new Blob([wavBuffer], { type: "audio/wav" });
+}
+
 /* ─── constants ──────────────────────────────────────────────── */
 const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2 };
 const defaultAssignment = "Stitch a clean straight seam with consistent margin and explain your quality checks.";
@@ -233,6 +271,9 @@ export default function ScreeningRoomPage() {
   const [integrityWarningSeconds, setIntegrityWarningSeconds] = useState(0);
   const [integrityReady, setIntegrityReady] = useState(false);
   const [integrityError, setIntegrityError] = useState("");
+  const [showTextFallback, setShowTextFallback] = useState(false);
+  const [textFallbackInput, setTextFallbackInput] = useState("");
+  const [currentPhase, setCurrentPhase] = useState("intro");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -248,6 +289,7 @@ export default function ScreeningRoomPage() {
   const faceChangeLatchedRef = useRef(false);
   const lastIntegrityEventAtRef = useRef({});
   const transcriptListRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
 
   const isSessionLive = session?.status === "live";
   const scoreColor = liveScore >= 70 ? "#2563eb" : liveScore >= 45 ? "#3b82f6" : "#93c5fd";
@@ -274,6 +316,7 @@ export default function ScreeningRoomPage() {
       clearInterval(integrityIntervalRef.current);
       detectorRef.current?.close?.();
       window.speechSynthesis.cancel();
+      if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     };
   }, []);
 
@@ -359,14 +402,22 @@ export default function ScreeningRoomPage() {
     } catch { setCameraError("Camera/mic blocked. Enable access in browser settings."); toast.error("Camera or microphone permission denied."); }
   };
 
-  const speakAi = (text) => {
+  const speakAi = async (text) => {
     if (!isVoiceEnabled || !text) return;
     setAiSpeaking(true);
-    const msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 1; msg.pitch = 1;
-    msg.onend = () => setAiSpeaking(false);
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(msg);
+    try {
+      const audioBlob = await screeningApi.ttsSynthesize(text);
+      const url = URL.createObjectURL(audioBlob);
+      const audio = new Audio(url);
+      audio.onended = () => { setAiSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url); };
+      await audio.play();
+    } catch {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.onend = () => setAiSpeaking(false);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(msg);
+    }
   };
 
   const startLiveSession = async () => {
@@ -384,37 +435,78 @@ export default function ScreeningRoomPage() {
       setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
       setTranscript(started.session.transcript || []); setSessionDone(false); setSetupOpen(false);
+      setCurrentPhase(started.session.current_phase || "intro");
+      setShowTextFallback(false); setTextFallbackInput("");
       toast.success("Live screening started.");
       speakAi(started.first_question);
     } catch { toast.error("Could not start screening session."); }
     finally { setIsSubmitting(false); }
   };
 
-  const submitWorkerTurn = async (explicitText) => {
+  const submitWorkerTurn = async (explicitText, acousticConf = null) => {
     const text = explicitText?.trim();
     if (!session || !text || integrityPaused) return;
     setIsSubmitting(true);
     try {
       setTranscript(p => [...p, { speaker: "worker", text, timestamp: new Date().toISOString() }]);
-      const res = await screeningApi.sendTurn(session.id, { worker_text: text });
-      setCurrentQuestion(res.ai_question); setLiveScore(res.live_score);
+      const res = await screeningApi.sendTurn(session.id, {
+        worker_text: text,
+        acoustic_confidence: acousticConf,
+      });
+      setCurrentQuestion(res.ai_question);
+      setLiveScore(res.live_score);
+      if (res.phase) setCurrentPhase(res.phase);
       setTranscript(p => [...p, { speaker: "ai", text: res.ai_question, timestamp: new Date().toISOString() }]);
       speakAi(res.ai_question);
-      toast.success(res.coach_note || "AI generated next question.");
     } catch { toast.error("Could not send worker response."); }
     finally { setIsSubmitting(false); setIsListening(false); }
   };
 
-  const startVoiceInput = () => {
+  const startVoiceInput = async () => {
     if (integrityPaused) { toast.error("Interview paused."); return; }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { toast.error("Speech recognition not supported."); return; }
-    const rec = new SR(); rec.continuous = false; rec.interimResults = true; rec.lang = "en-US";
-    let final = ""; setIsListening(true);
-    rec.onresult = e => { for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) final += e.results[i][0].transcript + " "; };
-    rec.onerror = () => { setIsListening(false); toast.error("Voice capture failed."); };
-    rec.onend = () => { if (final.trim()) submitWorkerTurn(final); else setIsListening(false); };
-    rec.start();
+
+    // If already recording, stop it
+    if (isListening && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        mediaRecorderRef.current = null;
+        setIsListening(false);
+        try {
+          const rawBlob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const wavBlob = await blobToWav(rawBlob);
+          const formData = new FormData();
+          formData.append("file", wavBlob, "audio.wav");
+          const result = await screeningApi.sttTranscribe(formData);
+          if (result.transcript?.trim()) {
+            submitWorkerTurn(result.transcript.trim());
+          }
+        } catch {
+          toast.error("Transcription failed — use text input below.");
+          setShowTextFallback(true);
+        }
+      };
+
+      setIsListening(true);
+      recorder.start();
+      // Auto-stop after 30s
+      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 30000);
+    } catch {
+      setIsListening(false);
+      toast.error("Microphone access failed — use text input below.");
+      setShowTextFallback(true);
+    }
   };
 
   const captureSnapshot = async (isAuto = false) => {
@@ -500,6 +592,14 @@ export default function ScreeningRoomPage() {
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "rgba(113,103,93,0.7)", margin: 0 }}>
                 Session Progress
               </p>
+              {session && (
+                <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 20, padding: "3px 9px" }}>
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6" }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#3b82f6", textTransform: "capitalize" }}>
+                    {currentPhase}
+                  </span>
+                </div>
+              )}
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
@@ -639,24 +739,67 @@ export default function ScreeningRoomPage() {
                     Voice Capture
                   </p>
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                    {integrityPaused ? "Interview paused until integrity clears." : isListening ? "Listening for the worker response..." : isSessionLive ? "Tap the mic to capture the next spoken answer." : "Start a session to enable live voice capture."}
+                    {integrityPaused ? "Interview paused until integrity clears." : isListening ? "Recording… tap mic again to stop." : isSessionLive ? "Tap the mic to record a spoken answer." : "Start a session to enable live voice capture."}
                   </p>
                 </div>
-                <button
-                  onClick={startVoiceInput}
-                  disabled={!isSessionLive || integrityPaused}
-                  title="Start voice capture"
-                  style={{
-                    ...iconBtn(isListening, "#3b82f6"),
-                    width: 44,
-                    height: 44,
-                    opacity: !isSessionLive ? 0.35 : 1,
-                    animation: isListening ? "orbPulse 1s ease-in-out infinite" : "none",
-                  }}
-                >
-                  <Mic size={18} />
-                </button>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    onClick={startVoiceInput}
+                    disabled={!isSessionLive || integrityPaused}
+                    title="Start voice capture"
+                    style={{
+                      ...iconBtn(isListening, "#3b82f6"),
+                      width: 44,
+                      height: 44,
+                      opacity: !isSessionLive ? 0.35 : 1,
+                      animation: isListening ? "orbPulse 1s ease-in-out infinite" : "none",
+                    }}
+                  >
+                    <Mic size={18} />
+                  </button>
+                  {isSessionLive && (
+                    <button
+                      onClick={() => setShowTextFallback(p => !p)}
+                      title="Type response instead"
+                      style={{ ...iconBtn(showTextFallback), width: 32, height: 32, fontSize: 13, fontWeight: 700 }}
+                    >
+                      Aa
+                    </button>
+                  )}
+                </div>
               </div>
+              {showTextFallback && isSessionLive && (
+                <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "flex-end" }}>
+                  <textarea
+                    value={textFallbackInput}
+                    onChange={e => setTextFallbackInput(e.target.value)}
+                    placeholder="Type worker response here..."
+                    rows={2}
+                    style={{ ...inputBase, flex: 1, fontSize: 12 }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (textFallbackInput.trim()) {
+                          submitWorkerTurn(textFallbackInput);
+                          setTextFallbackInput("");
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (textFallbackInput.trim()) {
+                        submitWorkerTurn(textFallbackInput);
+                        setTextFallbackInput("");
+                      }
+                    }}
+                    disabled={!textFallbackInput.trim() || isSubmitting}
+                    style={{ padding: "8px 14px", borderRadius: 12, border: "none", background: "#3b82f6", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
+                  >
+                    Send
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 

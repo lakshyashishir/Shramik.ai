@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.agents.screening_logic import build_snapshot_feedback, choose_opening_question, finalize_session, next_turn
+from app.agents.screening_logic import build_snapshot_feedback, choose_opening_question, finalize_session, run_agent_turn
 from app.models import (
     CompleteResponse,
     IntegrityEvent,
@@ -68,20 +68,37 @@ def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    turn_index = sum(1 for item in session.transcript if item.speaker == "worker")
-    ai_question, coach_note, delta = next_turn(turn_index)
+    result = run_agent_turn(session, payload.worker_text)
     updated = session.model_copy(
         update={
             "transcript": [
                 *session.transcript,
-                TranscriptItem(speaker="worker", text=payload.worker_text.strip(), timestamp=utc_now_iso()),
-                TranscriptItem(speaker="ai", text=ai_question, timestamp=utc_now_iso()),
+                TranscriptItem(
+                    speaker="worker",
+                    text=payload.worker_text.strip(),
+                    timestamp=utc_now_iso(),
+                    rubric_tag=payload.rubric_tag,
+                    acoustic_confidence=payload.acoustic_confidence,
+                ),
+                TranscriptItem(
+                    speaker="ai",
+                    text=result["ai_reply"],
+                    timestamp=utc_now_iso(),
+                    rubric_tag=result["rubric_tag"],
+                ),
             ],
-            "live_score": min(100.0, round(session.live_score + delta, 2)),
+            "current_phase": result["phase"],
+            "live_score": min(100.0, round(session.live_score + 2.5, 2)),
         }
     )
     sessions[session_id] = updated
-    return TurnResponse(ai_question=ai_question, coach_note=coach_note, live_score=updated.live_score)
+    return TurnResponse(
+        ai_question=result["ai_reply"],
+        coach_note="",
+        live_score=updated.live_score,
+        rubric_tag=result["rubric_tag"],
+        phase=result["phase"],
+    )
 
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)

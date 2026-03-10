@@ -24,4 +24,8 @@ export const screeningApi = {
   listLiveSessions: async () => (await client.get("/sessions/live")).data,
   listReports: async () => (await client.get("/sessions/reports")).data,
   getSession: async (sessionId) => (await client.get(`/session/${sessionId}`)).data,
+  sttTranscribe: async (formData) =>
+    (await client.post("/speech/stt", formData, { headers: { "Content-Type": "multipart/form-data" } })).data,
+  ttsSynthesize: async (text, language = "hi-IN") =>
+    (await client.post("/speech/tts", { text, language }, { responseType: "blob" })).data,
 };
