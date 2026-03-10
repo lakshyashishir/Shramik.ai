@@ -387,6 +387,7 @@ export default function ScreeningRoomPage() {
     if (!session || !cameraReady || !autoSnapshotOn || integrityPaused) return;
     autoSnapshotRef.current = setInterval(() => captureSnapshot(true), 30000);
     return () => clearInterval(autoSnapshotRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, autoSnapshotOn, cameraReady, integrityPaused]);
 
   useEffect(() => {
@@ -406,6 +407,7 @@ export default function ScreeningRoomPage() {
       } catch { setIntegrityError("MediaPipe unavailable."); }
     })();
     return () => { cancelled = true; clearInterval(integrityIntervalRef.current); detectorRef.current?.close?.(); detectorRef.current = null; setIntegrityReady(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSessionLive, cameraReady]);
 
   useEffect(() => {
