@@ -124,11 +124,6 @@ function rubricColor(score) {
   return "#dc2626";                  // red
 }
 
-const OVERRIDE_COLOR = {
-  pass:   { bg: "#dcfce7", border: "#16a34a", text: "#15803d" },
-  hold:   { bg: "#fef9c3", border: "#ca8a04", text: "#92400e" },
-  reject: { bg: "#fee2e2", border: "#dc2626", text: "#991b1b" },
-};
 
 const RECOMMENDATION_STYLE = {
   pass:    "bg-green-100 text-green-700 border-green-300",
@@ -572,53 +567,14 @@ export default function AdminDashboardPage() {
                 <p className="text-sm text-muted-foreground">{copy.reports.empty}</p>
               ) : (
                 reports.map((report) => (
-                  <article key={report.id} className="rounded-xl border border-border/60 bg-background p-3" data-testid={`report-item-${report.id}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-primary" data-testid={`report-worker-name-${report.id}`}>
-                        {report.worker_name}
-                      </p>
-                      <Badge className={`border ${recommendationColor[report.recommendation] || recommendationColor.pending}`} data-testid={`report-recommendation-${report.id}`}>
-                        {report.recommendation.toUpperCase()}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 font-mono text-xs text-accent" data-testid={`report-score-${report.id}`}>
-                      {copy.reports.finalScore}: {Math.round(report.live_score)}%
-                    </p>
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground" data-testid={`report-integrity-flag-${report.id}`}>
-                      {copy.reports.integrity}: {report.integrity_log?.overall_flag || copy.reports.clear}
-                    </p>
-                    <p className="font-mono text-[11px] text-muted-foreground" data-testid={`report-integrity-events-${report.id}`}>
-                      {copy.reports.multiFace} {report.integrity_log?.multiface_events || 0} | {copy.reports.absent} {report.integrity_log?.face_absent_events || 0} | {copy.reports.gaze} {report.integrity_log?.gaze_deviation_events || 0}
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground" data-testid={`report-summary-${report.id}`}>
-                      {report.summary}
-                    </p>
-                    {report.rubric_scores && Object.keys(report.rubric_scores).filter(k => k !== "integrity_compliance").length > 0 && (
-                      <div className="mt-3 space-y-1.5" data-testid={`report-rubric-breakdown-${report.id}`}>
-                        {[
-                          { key: "stitch_quality",            label: "Stitch",    w: "32%" },
-                          { key: "machine_familiarity",       label: "Machine",   w: "26%" },
-                          { key: "technical_knowledge",       label: "Technical", w: "24%" },
-                          { key: "fabric_material_knowledge", label: "Fabric",    w: "12%" },
-                          { key: "communication_confidence",  label: "Comm.",     w: "6%"  },
-                        ].filter(({ key }) => report.rubric_scores[key] != null).map(({ key, label, w }) => {
-                          const score = Math.round(report.rubric_scores[key]);
-                          const barColor = score >= 70 ? "bg-green-500" : score >= 50 ? "bg-yellow-500" : "bg-red-500";
-                          return (
-                            <div key={key}>
-                              <div className="flex justify-between">
-                                <span className="font-mono text-[10px] text-muted-foreground">{label} <span className="opacity-50">({w})</span></span>
-                                <span className="font-mono text-[10px] font-bold text-primary">{score}</span>
-                              </div>
-                              <div className="h-1 rounded-full bg-muted">
-                                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${score}%` }} />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </article>
+                  <ReportCard
+                    key={report.id}
+                    report={report}
+                    override={overrides[report.id] ?? null}
+                    onOverride={handleOverride}
+                    locale={locale}
+                    copy={copy.reports}
+                  />
                 ))
               )}
             </div>
