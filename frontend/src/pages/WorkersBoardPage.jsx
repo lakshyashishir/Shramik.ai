@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLanguage } from "@/i18n/language";
 
 const palette = {
   bg: "#ffffff",
@@ -161,7 +162,81 @@ const copyMap = {
       8: { specialization: "Children's Wear", bio: "Making durable and comfortable garments for children, school uniforms, and small-batch custom orders." },
     },
   },
-  hi: {},
+  hi: {
+    available: "उपलब्ध",
+    busy: "व्यस्त",
+    reviews: "समीक्षाएं",
+    jobsCompleted: "काम पूरे किए",
+    hireNow: "अभी हायर करें",
+    unavailable: "उपलब्ध नहीं",
+    rating: "रेटिंग",
+    urgent: "जरूरी",
+    hireRequest: "हायर रिक्वेस्ट",
+    contact: "संपर्क करें",
+    sendHireRequest: "हायर रिक्वेस्ट भेजें",
+    requestSent: "रिक्वेस्ट भेजी गई",
+    notified: "Worker को सूचित किया गया",
+    close: "बंद करें",
+    yourName: "आपका नाम",
+    fullName: "पूरा नाम",
+    email: "ईमेल",
+    projectDetails: "प्रोजेक्ट विवरण",
+    projectPlaceholder: "आपको क्या चाहिए, बताएं...",
+    preferredStartDate: "शुरुआत की तारीख",
+    budget: "बजट",
+    budgetPlaceholder: "जैसे Rs. 1500-3000",
+    heroKicker: "Verified worker marketplace",
+    heroTitle: "कुशल कारीगर खोजें या काम पोस्ट करें।",
+    heroDescription: "यह platform hiring, screening और काम की खोज एक जगह करता है।",
+    tabs: { tailors: "Worker खोजें", jobs: "काम देखें", post: "काम पोस्ट करें" },
+    stats: ["सक्रिय Workers", "पूरे किए काम", "औसत रेटिंग"],
+    searchPlaceholder: "नाम या जगह से खोजें",
+    sortTop: "क्रम: सबसे अच्छे",
+    sortAsc: "क्रम: कम कीमत पहले",
+    sortDesc: "क्रम: ज्यादा कीमत पहले",
+    availableOnly: "सिर्फ उपलब्ध",
+    showing: "दिखाए जा रहे हैं",
+    workers: "workers",
+    noWorkersTitle: "कोई worker नहीं मिला",
+    noWorkersDescription: "search या skill filter बदलकर देखें।",
+    openKicker: "खुले अवसर",
+    openTitle: "उपलब्ध काम देखें",
+    openDescription: "Short-term काम और assignment-based hiring।",
+    postKicker: "कुशल workers तक पहुंचें",
+    postTitle: "काम पोस्ट करें",
+    postDescription: "काम, बजट और जरूरी चीजें बताएं।",
+    postedSuccess: "काम पोस्ट हो गया। Workers अब इसे देख सकते हैं।",
+    postButton: "320+ Workers को पोस्ट करें",
+    formLabels: {
+      title: "काम का नाम",
+      skill: "जरूरी skill",
+      budget: "बजट",
+      description: "काम का विवरण",
+    },
+    formPlaceholders: {
+      title: "जैसे: Bridal Lehenga Embroidery",
+      budget: "जैसे: Rs. 500-800 या बातचीत योग्य",
+      description: "काम, मात्रा, deadline और जरूरतें बताएं...",
+    },
+    openBudget: "खुला",
+    justNow: "अभी",
+    skillLabels: {
+      All: "सभी",
+      "Bridal Wear": "ब्राइडल वियर",
+      Alterations: "बदलाव",
+      "Industrial Stitching": "इंडस्ट्रियल सिलाई",
+      Embroidery: "कढ़ाई",
+      "Leather Work": "चमड़े का काम",
+      Knitwear: "बुनाई",
+      "Suit Tailoring": "सूट टेलरिंग",
+      "Children's Wear": "बच्चों के कपड़े",
+      "Pattern Making": "पैटर्न बनाना",
+    },
+    tailorOverrides: {
+      1: { specialization: "ब्राइडल वियर", bio: "9 साल से जरदोज़ी कढ़ाई के साथ शादी के बेहतरीन कपड़े बना रही हैं।" },
+      8: { specialization: "बच्चों के कपड़े", bio: "बच्चों के लिए मजबूत और आरामदायक कपड़े, स्कूल यूनिफॉर्म और custom orders।" },
+    },
+  },
 };
 
 function StarRating({ rating, copy }) {
@@ -275,7 +350,8 @@ function HireModal({ tailor, onClose, copy }) {
 }
 
 export default function TailorBoard() {
-  const copy = copyMap.en;
+  const { locale } = useLanguage();
+  const copy = copyMap[locale] ?? copyMap.en;
   const [activeSkill, setActiveSkill] = useState("All");
   const [search, setSearch] = useState("");
   const [availableOnly, setAvailableOnly] = useState(false);
