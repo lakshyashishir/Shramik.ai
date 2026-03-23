@@ -25,19 +25,42 @@ def _get_openai_client() -> AzureOpenAI:
     )
 
 
-def choose_opening_question(worker_name: str, assignment: str) -> str:
+def choose_opening_question(worker_name: str, assignment: str, locale: str = "en") -> str:
+    if locale == "hi":
+        return (
+            f"नमस्ते {worker_name}! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
+            f"आज का असाइनमेंट है: {assignment}। "
+            "पहले, अपने बारे में बताइए — आप कहाँ से हैं, "
+            "और कितने सालों से सिलाई-कढ़ाई का काम कर रहे हैं?"
+        )
     return (
-        f"Namaste {worker_name}! Shramik.ai screening mein aapka swagat hai. "
-        f"Aaj ka assignment hai: {assignment.lower()}. "
-        "Pehle, aap apne baare mein thoda batayein — aap kahaan se hain, "
-        "aur kitne saalon se silai-kadhai ka kaam kar rahe hain?"
+        f"Hello {worker_name}! Welcome to Shramik.ai screening. "
+        f"Today's assignment is: {assignment}. "
+        "First, tell us a bit about yourself — where are you from, "
+        "and how many years have you been doing tailoring or stitching work?"
     )
 
 
-def run_agent_turn(session: Session, worker_text: str) -> dict:
+_HINDI_DIRECTIVE = (
+    "\n\n## LANGUAGE OVERRIDE — STRICT\n"
+    "The user has selected Hindi. You MUST reply ONLY in Hindi using Devanagari script. "
+    "Do NOT use Roman/English script for any Hindi word. English technical terms (machine, stitch, seam, etc.) "
+    "may be kept in English when there is no common Hindi equivalent, but all sentence structure, "
+    "grammar, and explanations must be in Devanagari Hindi."
+)
+
+_ENGLISH_DIRECTIVE = (
+    "\n\n## LANGUAGE OVERRIDE — STRICT\n"
+    "The user has selected English. You MUST reply ONLY in English. "
+    "Do not mix in Hindi or Hinglish."
+)
+
+
+def run_agent_turn(session: Session, worker_text: str, locale: str = "en") -> dict:
     """Call GPT-4o with full conversation history.
     Returns ai_reply, rubric_tag, phase, score_delta."""
     system_prompt = _SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
+    system_prompt += _HINDI_DIRECTIVE if locale == "hi" else _ENGLISH_DIRECTIVE
 
     messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for item in session.transcript:
@@ -65,8 +88,9 @@ def run_agent_turn(session: Session, worker_text: str) -> dict:
     except (TypeError, ValueError):
         score_delta = 0.0
 
+    fallback = "समझ नहीं आया, कृपया दोबारा बोलें।" if locale == "hi" else "I didn't understand, please say that again."
     return {
-        "ai_reply": result.get("reply", "Samajh nahi aaya, kripya dobara bolein."),
+        "ai_reply": result.get("reply", fallback),
         "rubric_tag": result.get("rubric_tag"),
         "phase": result.get("phase", session.current_phase),
         "score_delta": score_delta,
@@ -133,7 +157,7 @@ def build_snapshot_feedback(note: str, current_score: float, image_data: str = "
     )
 
 
-def _evaluate_transcript(session: Session) -> dict:
+def _evaluate_transcript(session: Session, locale: str = "en") -> dict:
     """GPT-4o evaluates the full transcript and returns per-rubric scores 0-100."""
     transcript_text = "\n".join(
         f"{'AI' if t.speaker == 'ai' else 'Worker'}: {t.text}"
@@ -144,6 +168,11 @@ def _evaluate_transcript(session: Session) -> dict:
     if not transcript_text.strip():
         return {}
 
+    lang_note = (
+        " Write the 'summary' field in Hindi (Devanagari script only, no Roman/English words for Hindi content)."
+        if locale == "hi" else
+        " Write the 'summary' field in English."
+    )
     system = (
         "You are Shramik.ai evaluator for garment worker skill screening. "
         "Analyze the full interview transcript and score the worker strictly on each rubric 0-100. "
@@ -154,7 +183,7 @@ def _evaluate_transcript(session: Session) -> dict:
         "\"stitch_quality\": int, \"fabric_material_knowledge\": int, "
         "\"communication_confidence\": int, "
         "\"summary\": \"2 honest sentences about this worker's readiness\", "
-        "\"recommendation\": \"pass|hold|reject\"}"
+        "\"recommendation\": \"pass|hold|reject\"}" + lang_note
     )
 
     prompt = (
@@ -181,9 +210,9 @@ def _evaluate_transcript(session: Session) -> dict:
         return {}
 
 
-def finalize_session(session: Session) -> Session:
+def finalize_session(session: Session, locale: str = "en") -> Session:
     # GPT-4o evaluates the actual transcript content
-    eval_result = _evaluate_transcript(session)
+    eval_result = _evaluate_transcript(session, locale)
 
     rubric_keys = ["machine_familiarity", "technical_knowledge", "stitch_quality",
                    "fabric_material_knowledge", "communication_confidence"]
@@ -214,19 +243,29 @@ def finalize_session(session: Session) -> Session:
 
     if session.integrity_log.overall_flag == "critical_flag":
         recommendation = "reject"
-        summary = "Face identity changed during interview. Recruiter verification required before proceeding."
+        summary = (
+            "इंटरव्यू के दौरान चेहरा बदल गया। आगे बढ़ने से पहले भर्तीकर्ता सत्यापन आवश्यक है।"
+            if locale == "hi" else
+            "Face identity changed during interview. Recruiter verification required before proceeding."
+        )
     else:
         llm_rec = str(eval_result.get("recommendation", "")).lower().strip()
         recommendation = llm_rec if llm_rec in {"pass", "hold", "reject"} else (
             "pass" if overall >= 75 else "hold" if overall >= 50 else "reject"
         )
-        summary = str(eval_result.get("summary", "")) or (
-            "Worker shows strong tailoring fundamentals and can be considered for supervised line work."
-            if recommendation == "pass"
-            else "Worker shows promise but needs closer supervision before deployment."
-            if recommendation == "hold"
-            else "Worker did not demonstrate sufficient technical knowledge for this role."
-        )
+        if locale == "hi":
+            fallback_summaries = {
+                "pass": "श्रमिक ने मज़बूत सिलाई कौशल दिखाया और पर्यवेक्षित लाइन कार्य के लिए उपयुक्त है।",
+                "hold": "श्रमिक में संभावना है, लेकिन तैनाती से पहले करीबी पर्यवेक्षण की ज़रूरत है।",
+                "reject": "श्रमिक ने इस भूमिका के लिए पर्याप्त तकनीकी ज्ञान नहीं दिखाया।",
+            }
+        else:
+            fallback_summaries = {
+                "pass": "Worker shows strong tailoring fundamentals and can be considered for supervised line work.",
+                "hold": "Worker shows promise but needs closer supervision before deployment.",
+                "reject": "Worker did not demonstrate sufficient technical knowledge for this role.",
+            }
+        summary = str(eval_result.get("summary", "")) or fallback_summaries[recommendation]
 
     return session.model_copy(
         update={

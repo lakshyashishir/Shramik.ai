@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.agents.screening_logic import build_snapshot_feedback, choose_opening_question, finalize_session, run_agent_turn
 from app.models import (
@@ -34,12 +34,12 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
 
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
-def start_session(payload: SessionStartRequest) -> SessionStartResponse:
+def start_session(payload: SessionStartRequest, locale: str = Query("en")) -> SessionStartResponse:
     worker = workers.get(payload.worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    first_question = choose_opening_question(worker.name, payload.assignment)
+    first_question = choose_opening_question(worker.name, payload.assignment, locale)
     session = Session(
         id=new_id("session"),
         worker_id=worker.id,
@@ -61,14 +61,14 @@ def start_session(payload: SessionStartRequest) -> SessionStartResponse:
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
-def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
+def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en")) -> TurnResponse:
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    result = run_agent_turn(session, payload.worker_text)
+    result = run_agent_turn(session, payload.worker_text, locale)
     new_score = round(
         max(0.0, min(100.0, session.live_score + result["score_delta"])),
         2,
@@ -197,14 +197,14 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
-def complete_session(session_id: str) -> CompleteResponse:
+def complete_session(session_id: str, locale: str = Query("en")) -> CompleteResponse:
     session = sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status == "completed":
         return CompleteResponse(session=session)
 
-    completed = finalize_session(session)
+    completed = finalize_session(session, locale)
     sessions[session_id] = completed
     return CompleteResponse(session=completed)
 
