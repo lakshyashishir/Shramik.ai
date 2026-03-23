@@ -3,6 +3,8 @@ import { Camera, Mic, ShieldAlert, ShieldCheck, Square, Settings, X, ChevronDown
 import { toast } from "@/components/ui/sonner";
 import { screeningApi } from "@/services/api";
 import { useLanguage } from "@/i18n/language";
+import { useRole } from "@/context/role";
+import PassportCard from "@/components/PassportCard";
 
 /* ─── WAV encoder (SarvamAI requires wav/mp3, not webm) ─────── */
 async function blobToWav(blob) {
@@ -65,6 +67,146 @@ const HAND_CONNECTIONS = [
   [13, 17], [17, 18], [18, 19], [19, 20],
   [0, 17],
 ];
+
+/* ─── i18n copy ──────────────────────────────────────────────── */
+const SRP_COPY = {
+  en: {
+    vob_skip: "Skip", vob_intro_title: "Hello!", vob_intro_sub: "Tell us your name and trade",
+    vob_intro_example: '"My name is Ramu, I am a tailor"',
+    vob_listening_title: "Listening...", vob_listening_sub: "Tell us your name, trade and experience",
+    vob_processing_title: "Processing...", vob_processing_sub: "Processing your voice",
+    vob_confirm_exp: "yrs experience", vob_confirm_starting: "Starting interview...",
+    vob_error_title: "Something went wrong",
+    vob_error_voice: "Voice was unclear. Please try again.",
+    vob_error_mic: "Microphone not working. Press Skip for manual setup.",
+    vob_mic_hint: "Press mic and speak", vob_recording_hint: "Recording... press again to stop",
+    vob_tts_welcome: "Hello! I am your Shramik Mitra. Please tell me your name and trade.",
+    vob_tts_confirm: (name) => `Your name ${name} has been registered. Ready to start?`,
+    setup_kicker: "Configure", setup_title: "Session Setup", setup_worker_label: "Worker",
+    setup_new_worker: "Create new worker", setup_name_ph: "Worker full name *",
+    setup_spec_ph: "Specialization", setup_exp_ph: "Years of experience",
+    setup_assign_label: "Assignment", setup_starting: "Starting...",
+    setup_restart: "Restart Session", setup_start: "Start Live Session",
+    sidebar_heading: "Session Progress",
+    sidebar_tasks: [
+      { label: "Session configured", sub: "Worker & assignment set" },
+      { label: "Camera ready", sub: "Video feed active" },
+      { label: "Integrity monitor on", sub: "MediaPipe running" },
+      { label: "First question asked", sub: "AI has spoken" },
+      { label: "Worker responded", sub: "First answer captured" },
+      { label: "3+ exchanges", sub: "messages" },
+      { label: "Snapshot captured", sub_score: "Score", sub_none: "Not yet" },
+      { label: "Session complete", sub_final: "Final", sub_end: "End to finish" },
+    ],
+    sidebar_score: "AI Score", sidebar_reconfigure: "Reconfigure",
+    sidebar_setup: "Setup Session", sidebar_end: "End Session",
+    mobile_no_session: "No session", mobile_phase: "phase", mobile_end: "End", mobile_setup: "Setup",
+    current_q_label: "Current Question", waiting_ai: "Waiting for AI...",
+    setup_to_begin: "Set up a session to begin.",
+    ai_speaking: "AI Speaking", idle: "Idle",
+    live_transcript: "Live Transcript", total: "total",
+    transcript_empty: "Transcript appears after session starts.",
+    voice_capture: "Voice Capture",
+    status_paused: "Interview paused until integrity clears.",
+    status_recording: "Recording… tap mic again to stop.",
+    status_tap_mic: "Tap the mic to record a spoken answer.",
+    status_start_session: "Start a session to enable live voice capture.",
+    type_response_ph: "Type worker response here...", send: "Send",
+    multi_face_title: "Multiple people detected",
+    multi_face_sub: (s) => `Only you should be visible. Pausing in ${s}s...`,
+    paused_title: "Interview Paused",
+    pause_face_absent: "Face left the frame. Please return to camera.",
+    pause_face_change: "Face identity changed. Recruiter verification required.",
+    pause_multi: "Multiple faces were detected.",
+    resume_btn: "I'm alone — Resume",
+    overall_score: "Overall Score", skill_breakdown: "Skill Breakdown",
+    rubric: [
+      { key: "stitch_quality", label: "Stitch Quality", weight: "32%" },
+      { key: "machine_familiarity", label: "Machine Skill", weight: "26%" },
+      { key: "technical_knowledge", label: "Technical Know.", weight: "24%" },
+      { key: "fabric_material_knowledge", label: "Fabric Knowledge", weight: "12%" },
+      { key: "communication_confidence", label: "Communication", weight: "6%" },
+      { key: "integrity_compliance", label: "Integrity", weight: "" },
+    ],
+    integrity_log_heading: "Integrity Log",
+    integrity_multiface: "Multi-face", integrity_absent: "Face absent",
+    integrity_gaze: "Gaze off", integrity_flag: "Flag", integrity_warning: "warning",
+    stitch_snapshot: "Stitch Snapshot", no_snapshot: "No snapshot captured yet.",
+    snapshot_btn: "Snapshot", recording: "Recording", no_session_badge: "No Session",
+    ai_monitor_on: "AI Monitor On", ai_monitor_off: "AI Monitor Off",
+    hands_on: "Hands On", hands_off: "Hands Off",
+    log_multiface: "Multiface", log_absent: "Face absent", log_gaze: "Gaze deviation",
+    log_change: "Face change", log_flag: "Flag", log_warning: "warning", log_label: "Log",
+  },
+  hi: {
+    vob_skip: "छोड़ें", vob_intro_title: "नमस्ते!", vob_intro_sub: "अपना नाम और काम बोलिए",
+    vob_intro_example: '"मेरा नाम रामू है, मैं दर्ज़ी हूँ"',
+    vob_listening_title: "सुन रहा हूँ...", vob_listening_sub: "नाम, काम, और अनुभव बताओ",
+    vob_processing_title: "समझ रहा हूँ...", vob_processing_sub: "आपकी आवाज़ प्रोसेस हो रही है",
+    vob_confirm_exp: "साल का अनुभव", vob_confirm_starting: "इंटरव्यू शुरू हो रहा है...",
+    vob_error_title: "कुछ गड़बड़ हुई",
+    vob_error_voice: "आवाज़ साफ नहीं आई। दोबारा कोशिश करें।",
+    vob_error_mic: "माइक्रोफ़ोन काम नहीं कर रहा। छोड़ें बटन दबाकर मैनुअल सेटअप करें।",
+    vob_mic_hint: "माइक दबाओ और बोलो", vob_recording_hint: "रिकॉर्डिंग... बंद करने के लिए दोबारा दबाओ",
+    vob_tts_welcome: "नमस्ते! मैं आपका श्रमिक मित्र हूँ। अपना नाम और काम बताइए।",
+    vob_tts_confirm: (name) => `आपका नाम ${name} रजिस्टर हो गया। इंटरव्यू शुरू करें?`,
+    setup_kicker: "सेटअप", setup_title: "सत्र सेटअप", setup_worker_label: "श्रमिक",
+    setup_new_worker: "नया श्रमिक बनाएँ", setup_name_ph: "श्रमिक का पूरा नाम *",
+    setup_spec_ph: "विशेषज्ञता", setup_exp_ph: "अनुभव (वर्ष)",
+    setup_assign_label: "असाइनमेंट", setup_starting: "शुरू हो रहा है...",
+    setup_restart: "सत्र पुनः शुरू करें", setup_start: "लाइव सत्र शुरू करें",
+    sidebar_heading: "सत्र प्रगति",
+    sidebar_tasks: [
+      { label: "सत्र सेटअप", sub: "श्रमिक और कार्य तय" },
+      { label: "कैमरा तैयार", sub: "वीडियो चालू" },
+      { label: "निगरानी चालू", sub: "MediaPipe चल रहा है" },
+      { label: "पहला सवाल पूछा", sub: "AI ने बोला" },
+      { label: "श्रमिक ने जवाब दिया", sub: "पहला जवाब मिला" },
+      { label: "3+ संवाद", sub: "संदेश" },
+      { label: "स्नैपशॉट लिया", sub_score: "स्कोर", sub_none: "अभी नहीं" },
+      { label: "सत्र पूरा", sub_final: "अंतिम", sub_end: "समाप्त करने के लिए दबाएँ" },
+    ],
+    sidebar_score: "AI स्कोर", sidebar_reconfigure: "पुनः सेटअप",
+    sidebar_setup: "सत्र सेटअप", sidebar_end: "सत्र समाप्त",
+    mobile_no_session: "कोई सत्र नहीं", mobile_phase: "चरण", mobile_end: "समाप्त", mobile_setup: "सेटअप",
+    current_q_label: "वर्तमान सवाल", waiting_ai: "AI की प्रतीक्षा...",
+    setup_to_begin: "सत्र शुरू करने के लिए सेटअप करें।",
+    ai_speaking: "AI बोल रहा है", idle: "प्रतीक्षा में",
+    live_transcript: "लाइव ट्रांसक्रिप्ट", total: "कुल",
+    transcript_empty: "सत्र शुरू होने के बाद ट्रांसक्रिप्ट दिखेगा।",
+    voice_capture: "आवाज़ कैप्चर",
+    status_paused: "निगरानी मंजूरी तक इंटरव्यू रुका।",
+    status_recording: "रिकॉर्डिंग... रोकने के लिए फिर दबाएँ।",
+    status_tap_mic: "जवाब देने के लिए माइक दबाएँ।",
+    status_start_session: "वॉइस के लिए सत्र शुरू करें।",
+    type_response_ph: "यहाँ जवाब टाइप करें...", send: "भेजें",
+    multi_face_title: "कई लोग दिखे",
+    multi_face_sub: (s) => `केवल आप दिखने चाहिए। ${s} सेकंड में रुकेगा...`,
+    paused_title: "इंटरव्यू रुका",
+    pause_face_absent: "चेहरा फ्रेम से बाहर गया। कैमरे पर वापस आएँ।",
+    pause_face_change: "चेहरा बदल गया। भर्तीकर्ता सत्यापन आवश्यक।",
+    pause_multi: "कई चेहरे दिखे।",
+    resume_btn: "मैं अकेला हूँ — जारी रखें",
+    overall_score: "कुल स्कोर", skill_breakdown: "कौशल विवरण",
+    rubric: [
+      { key: "stitch_quality", label: "सिलाई गुणवत्ता", weight: "32%" },
+      { key: "machine_familiarity", label: "मशीन कौशल", weight: "26%" },
+      { key: "technical_knowledge", label: "तकनीकी ज्ञान", weight: "24%" },
+      { key: "fabric_material_knowledge", label: "कपड़ा ज्ञान", weight: "12%" },
+      { key: "communication_confidence", label: "संवाद", weight: "6%" },
+      { key: "integrity_compliance", label: "ईमानदारी", weight: "" },
+    ],
+    integrity_log_heading: "ईमानदारी लॉग",
+    integrity_multiface: "कई चेहरे", integrity_absent: "चेहरा अनुपस्थित",
+    integrity_gaze: "नज़र भटकाव", integrity_flag: "चिह्न", integrity_warning: "चेतावनी",
+    stitch_snapshot: "सिलाई स्नैपशॉट", no_snapshot: "अभी कोई स्नैपशॉट नहीं।",
+    snapshot_btn: "स्नैपशॉट", recording: "रिकॉर्डिंग", no_session_badge: "कोई सत्र नहीं",
+    ai_monitor_on: "AI निगरानी चालू", ai_monitor_off: "AI निगरानी बंद",
+    hands_on: "हाथ: चालू", hands_off: "हाथ: बंद",
+    log_multiface: "कई चेहरे", log_absent: "चेहरा अनुपस्थित", log_gaze: "नज़र भटकाव",
+    log_change: "चेहरा परिवर्तन", log_flag: "चिह्न", log_warning: "चेतावनी", log_label: "लॉग",
+  },
+};
 
 /* ─── face helpers ───────────────────────────────────────────── */
 function toPointDistance(a, b) {
@@ -254,9 +396,228 @@ function TranscriptMsg({ line }) {
     </div>
   );
 }
+/* ─── Voice Onboarding Screen ────────────────────────────────── */
+function VoiceOnboardingScreen({ onComplete, onSkip }) {
+  const { locale, setLocale } = useLanguage();
+  const copy = SRP_COPY.hi; // onboarding always starts in Hindi
+  const [phase, setPhase] = useState("intro"); // intro | listening | processing | confirm | error
+  const [workerInfo, setWorkerInfo] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
+  const recRef = useRef(null);
+
+  // Force Hindi for the onboarding screen regardless of cached locale
+  useEffect(() => { setLocale("hi"); }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const blob = await screeningApi.ttsSynthesize(
+          copy.vob_tts_welcome,
+          "hi-IN"
+        );
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => URL.revokeObjectURL(url);
+        audio.onerror = () => URL.revokeObjectURL(url);
+        audio.play().catch(() => {});
+      } catch {}
+    })();
+  }, []);
+
+  const startListening = async () => {
+    setPhase("listening");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      recRef.current = recorder;
+      const chunks = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setPhase("processing");
+        try {
+          const raw = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+          const wav = await blobToWav(raw);
+          const fd = new FormData();
+          fd.append("file", wav, "audio.wav");
+          const stt = await screeningApi.sttTranscribe(fd);
+          const text = stt.transcript?.trim();
+          if (!text) throw new Error("empty");
+          const info = await screeningApi.onboardWorkerByVoice({ voice_transcript: text });
+          setWorkerInfo(info);
+          setPhase("confirm");
+          try {
+            const msg = copy.vob_tts_confirm(info.name);
+            const ab = await screeningApi.ttsSynthesize(msg, "hi-IN");
+            const url = URL.createObjectURL(ab);
+            const a = new Audio(url);
+            a.onended = () => { URL.revokeObjectURL(url); setTimeout(() => onComplete(info), 1200); };
+            a.onerror = () => { URL.revokeObjectURL(url); setTimeout(() => onComplete(info), 1200); };
+            a.play().catch(() => setTimeout(() => onComplete(info), 2500));
+          } catch {
+            setTimeout(() => onComplete(info), 2500);
+          }
+        } catch {
+          setErrorMsg(copy.vob_error_voice);
+          setPhase("error");
+        }
+      };
+      recorder.start();
+      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 15000);
+    } catch {
+      setErrorMsg(copy.vob_error_mic);
+      setPhase("error");
+    }
+  };
+
+  const stopEarly = () => {
+    if (recRef.current?.state === "recording") recRef.current.stop();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 500,
+      background: "linear-gradient(160deg, #05102a 0%, #0c1e45 60%, #05102a 100%)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "clamp(20px, 5vw, 48px)", overflow: "hidden", fontFamily: "Manrope, sans-serif",
+    }}>
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(59,130,246,0.1) 0%, transparent 70%)", pointerEvents: "none" }} />
+
+      <button onClick={onSkip} style={{
+        position: "absolute", top: 16, right: 16,
+        background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+        color: "rgba(255,255,255,0.45)", borderRadius: 20, padding: "8px 16px",
+        fontSize: 12, fontWeight: 600, cursor: "pointer", zIndex: 1,
+      }}>
+        {copy.vob_skip}
+      </button>
+
+      <p style={{ position: "relative", fontSize: 10, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: "rgba(59,130,246,0.65)", marginBottom: 28 }}>
+        Shramik.ai
+      </p>
+
+      <div style={{ position: "relative", marginBottom: 32, flexShrink: 0 }}>
+        <AiOrb speaking={phase === "processing"} paused={false} score={0} />
+      </div>
+
+      <div style={{ position: "relative", textAlign: "center", maxWidth: 320, marginTop: 12 }}>
+        {phase === "intro" && <>
+          <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(28px, 6vw, 40px)", color: "#fff", margin: "0 0 12px", lineHeight: 1.1 }}>
+            {copy.vob_intro_title}
+          </h1>
+          <p style={{ fontSize: "clamp(14px, 3vw, 16px)", color: "rgba(255,255,255,0.62)", lineHeight: 1.7, margin: "0 0 6px" }}>
+            {copy.vob_intro_sub}
+          </p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>
+            {copy.vob_intro_example}
+          </p>
+        </>}
+        {phase === "listening" && <>
+          <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(22px, 5vw, 32px)", color: "#93c5fd", margin: "0 0 10px" }}>
+            {copy.vob_listening_title}
+          </h2>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0 }}>
+            {copy.vob_listening_sub}
+          </p>
+        </>}
+        {phase === "processing" && <>
+          <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(22px, 5vw, 32px)", color: "#93c5fd", margin: "0 0 10px" }}>
+            {copy.vob_processing_title}
+          </h2>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: 0 }}>
+            {copy.vob_processing_sub}
+          </p>
+        </>}
+        {phase === "confirm" && workerInfo && <>
+          <p style={{ fontSize: 36, margin: "0 0 10px" }}>✓</p>
+          <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(22px, 5vw, 32px)", color: "#4ade80", margin: "0 0 8px" }}>
+            {workerInfo.name}
+          </h2>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 6px" }}>
+            {workerInfo.specialization} · {workerInfo.experience_years} {copy.vob_confirm_exp}
+          </p>
+          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", margin: 0 }}>
+            {copy.vob_confirm_starting}
+          </p>
+        </>}
+        {phase === "error" && <>
+          <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(20px, 5vw, 28px)", color: "#f87171", margin: "0 0 10px" }}>
+            {copy.vob_error_title}
+          </h2>
+          <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", margin: "0 0 18px", lineHeight: 1.6 }}>
+            {errorMsg}
+          </p>
+        </>}
+      </div>
+
+      <div style={{ position: "relative", marginTop: 36 }}>
+        {(phase === "intro" || phase === "error") && (
+          <button
+            onClick={phase === "error" ? () => setPhase("intro") : startListening}
+            style={{
+              width: 72, height: 72, borderRadius: "50%", border: "none",
+              background: phase === "error" ? "rgba(248,113,113,0.15)" : "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+              color: phase === "error" ? "#f87171" : "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer",
+              animation: phase === "intro" ? "vobMicPulse 2s ease-in-out infinite" : "none",
+              boxShadow: phase === "intro" ? "0 0 0 0 rgba(59,130,246,0.5)" : "none",
+            }}
+          >
+            <Mic size={28} />
+          </button>
+        )}
+        {phase === "listening" && (
+          <button
+            onClick={stopEarly}
+            style={{
+              width: 72, height: 72, borderRadius: "50%",
+              border: "2px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.1)",
+              color: "#f87171", display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", animation: "recPulse 1s ease-in-out infinite",
+            }}
+          >
+            <Square size={22} fill="#f87171" />
+          </button>
+        )}
+        {phase === "processing" && (
+          <div style={{
+            width: 72, height: 72, borderRadius: "50%",
+            border: "2px solid rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.06)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2.5px solid transparent", borderTopColor: "#3b82f6", animation: "vobSpin 0.8s linear infinite" }} />
+          </div>
+        )}
+      </div>
+
+      {phase === "intro" && (
+        <p style={{ position: "relative", marginTop: 14, fontSize: 11, color: "rgba(255,255,255,0.28)", letterSpacing: 0.5 }}>
+          {copy.vob_mic_hint}
+        </p>
+      )}
+      {phase === "listening" && (
+        <p style={{ position: "relative", marginTop: 14, fontSize: 11, color: "rgba(239,68,68,0.6)", letterSpacing: 0.5 }}>
+          {copy.vob_recording_hint}
+        </p>
+      )}
+
+      <style>{`
+        @keyframes vobMicPulse {
+          0%   { box-shadow: 0 0 0 0   rgba(59,130,246,0.5); }
+          70%  { box-shadow: 0 0 0 24px rgba(59,130,246,0);   }
+          100% { box-shadow: 0 0 0 0   rgba(59,130,246,0);   }
+        }
+        @keyframes vobSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
 /* ─── setup modal ────────────────────────────────────────────── */
 function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorkerId, workerDraft, setWorkerDraft, assignment, setAssignment, onStart, isSubmitting, session }) {
   const { locale } = useLanguage();
+  const copy = SRP_COPY[locale] ?? SRP_COPY.en;
   const workerOptions = useMemo(() => workers.map((worker) => ({ id: worker.id, label: `${worker.name} | ${worker.specialization}` })), [workers]);
   const field = { width: "100%", padding: "10px 12px", boxSizing: "border-box", background: "#ffffff", border: "1px solid rgba(35,49,79,0.12)", borderRadius: 14, color: "#23314f", fontSize: 13, outline: "none", fontFamily: "inherit" };
   if (!open) return null;
@@ -265,30 +626,30 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
       <div onClick={(event) => event.stopPropagation()} style={{ background: "#ffffff", border: "1px solid rgba(35,49,79,0.1)", borderRadius: 24, padding: "28px 24px", width: "100%", maxWidth: 460, boxShadow: "0 32px 80px rgba(35,49,79,0.18)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
-            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: 0 }}>{"Configure"}</p>
-            <h2 style={{ fontSize: 22, fontFamily: "Fraunces, serif", color: "#23314f", margin: "4px 0 0" }}>{"Session Setup"}</h2>
+            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: 0 }}>{copy.setup_kicker}</p>
+            <h2 style={{ fontSize: 22, fontFamily: "Fraunces, serif", color: "#23314f", margin: "4px 0 0" }}>{copy.setup_title}</h2>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#71675d", cursor: "pointer", padding: 4 }}><X size={20} /></button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{"Worker"}</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_worker_label}</label>
             <select value={selectedWorkerId} onChange={(event) => setSelectedWorkerId(event.target.value)} style={field}>
-              <option value="">{"Create new worker"}</option>
+              <option value="">{copy.setup_new_worker}</option>
               {workerOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
             </select>
           </div>
           {!selectedWorkerId && (<>
-            <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder={"Worker full name *"} style={field} />
-            <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder={"Specialization"} style={field} />
-            <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder={"Years of experience"} style={field} />
+            <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder={copy.setup_name_ph} style={field} />
+            <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder={copy.setup_spec_ph} style={field} />
+            <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder={copy.setup_exp_ph} style={field} />
           </>)}
           <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{"Assignment"}</label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_assign_label}</label>
             <textarea value={assignment} onChange={(event) => setAssignment(event.target.value)} rows={3} style={{ ...field, resize: "vertical" }} />
           </div>
           <button onClick={onStart} disabled={isSubmitting} style={{ padding: "12px", borderRadius: 999, border: "none", background: isSubmitting ? "#cbd5e1" : "linear-gradient(135deg,#23314f,#3b82f6)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: isSubmitting ? "not-allowed" : "pointer", letterSpacing: 0.5, marginTop: 4 }}>
-            {isSubmitting ? ("Starting...") : session?.status === "live" ? ("Restart Session") : ("Start Live Session")}
+            {isSubmitting ? copy.setup_starting : session?.status === "live" ? copy.setup_restart : copy.setup_start}
           </button>
         </div>
       </div>
@@ -300,6 +661,9 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
 ══════════════════════════════════════════════════════════════ */
 export default function ScreeningRoomPage() {
   const { locale } = useLanguage();
+  const copy = SRP_COPY[locale] ?? SRP_COPY.en;
+  const { role } = useRole();
+  const [voiceOnboardingDone, setVoiceOnboardingDone] = useState(false);
   const [workers, setWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [workerDraft, setWorkerDraft] = useState(defaultWorker);
@@ -317,7 +681,7 @@ export default function ScreeningRoomPage() {
   const [transcript, setTranscript] = useState([]);
   const [autoSnapshotOn, setAutoSnapshotOn] = useState(true);
   const [aiSpeaking, setAiSpeaking] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(true);
+  const [setupOpen, setSetupOpen] = useState(false);
   const [sessionDone, setSessionDone] = useState(false);
   const [integrityLog, setIntegrityLog] = useState(null);
   const [integrityPaused, setIntegrityPaused] = useState(false);
@@ -582,7 +946,7 @@ export default function ScreeningRoomPage() {
       const res = await screeningApi.sendTurn(session.id, {
         worker_text: text,
         acoustic_confidence: acousticConf,
-      });
+      }, locale);
       setCurrentQuestion(res.ai_question);
       setLiveScore(res.live_score);
       if (res.phase) setCurrentPhase(res.phase);
@@ -670,6 +1034,25 @@ export default function ScreeningRoomPage() {
     finally { setIsSubmitting(false); }
   };
 
+  const handleVoiceOnboardComplete = async (workerData) => {
+    setVoiceOnboardingDone(true);
+    setIsSubmitting(true);
+    try {
+      const started = await screeningApi.startSession({ worker_id: workerData.id, assignment: assignment.trim() }, locale);
+      resetIntegrityState();
+      setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
+      setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
+      setTranscript(started.session.transcript || []); setSessionDone(false); setSetupOpen(false);
+      setCurrentPhase(started.session.current_phase || "intro");
+      setShowTextFallback(false); setTextFallbackInput("");
+      toast.success("Live screening started.");
+      speakAi(started.first_question);
+    } catch {
+      toast.error("Could not start screening session.");
+      setVoiceOnboardingDone(false);
+    } finally { setIsSubmitting(false); }
+  };
+
   /* ─── styles ─── */
   const inputBase = {
     background: "#ffffff", border: "1px solid rgba(35,49,79,0.12)",
@@ -695,12 +1078,26 @@ export default function ScreeningRoomPage() {
         .srp ::-webkit-scrollbar-thumb { background: rgba(35,49,79,0.12); border-radius: 4px; }
         .srp textarea:focus, .srp input:focus { border-color: rgba(59,130,246,0.4) !important; }
         .srp textarea::placeholder { color: rgba(113,103,93,0.7); }
-        @media (max-width: 700px) {
+        .srp-mobile-bar { display: none; }
+        @media (max-width: 768px) {
+          .srp-sidebar { display: none !important; }
           .srp-split { flex-direction: column !important; }
-          .srp-left, .srp-right { width: 100% !important; min-height: 50dvh !important; border-right: none !important; }
+          .srp-left, .srp-right { width: 100% !important; min-height: 44dvh !important; border-right: none !important; }
           .srp-left { border-bottom: 1px solid rgba(35,49,79,0.08) !important; }
+          .srp-mobile-bar { display: flex !important; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(35,49,79,0.08); background: #fff; flex-shrink: 0; gap: 10px; }
+          .srp-mic-btn { width: 54px !important; height: 54px !important; }
+        }
+        @media (min-width: 769px) {
+          .srp-mobile-bar { display: none !important; }
         }
       `}</style>
+
+      {!voiceOnboardingDone && !session && (
+        <VoiceOnboardingScreen
+          onComplete={handleVoiceOnboardComplete}
+          onSkip={() => { setVoiceOnboardingDone(true); setSetupOpen(true); }}
+        />
+      )}
 
       <div className="srp" style={{
         height: "100dvh",
@@ -708,10 +1105,34 @@ export default function ScreeningRoomPage() {
         color: "#23314f",
         display: "flex", flexDirection: "column",
         overflow: "hidden",
-      }}><div className="srp-split" style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, border: "1px solid rgba(35,49,79,0.08)", borderRadius: 28, background: "#ffffff", boxShadow: "0 20px 48px rgba(35,49,79,0.08)" }}>
+      }}>
+        {/* Mobile top bar — hidden on desktop */}
+        <div className="srp-mobile-bar">
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: isSessionLive ? "#3b82f6" : "#cbd5e1", flexShrink: 0, animation: isSessionLive ? "recPulse 1.5s ease-in-out infinite" : "none" }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#23314f", whiteSpace: "nowrap", textTransform: "capitalize" }}>
+              {session ? `${currentPhase} ${copy.mobile_phase}` : copy.mobile_no_session}
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
+            {isSessionLive && (
+              <button onClick={finishScreening} disabled={isSubmitting} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "rgba(59,130,246,0.1)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                {copy.mobile_end}
+              </button>
+            )}
+            {!session && (
+              <button onClick={() => setSetupOpen(true)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "rgba(35,49,79,0.08)", color: "#23314f", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                {copy.mobile_setup}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="srp-split" style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, border: "1px solid rgba(35,49,79,0.08)", borderRadius: 28, background: "#ffffff", boxShadow: "0 20px 48px rgba(35,49,79,0.08)" }}>
 
           {/* ════ TASK CHECKLIST SIDEBAR ════ */}
-          <aside aria-label="Session Progress" style={{
+          <aside className="srp-sidebar" aria-label="Session Progress" style={{
             width: 200, flexShrink: 0,
             borderRight: "1px solid rgba(35,49,79,0.08)",
             background: "#ffffff",
@@ -720,7 +1141,7 @@ export default function ScreeningRoomPage() {
           }}>
             <div style={{ padding: "14px 14px 8px", borderBottom: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "rgba(113,103,93,0.7)", margin: 0 }}>
-                {"Session Progress"}
+                {copy.sidebar_heading}
               </p>
               {session && (
                 <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 5, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 20, padding: "3px 9px" }}>
@@ -733,16 +1154,15 @@ export default function ScreeningRoomPage() {
             </div>
 
             <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
-              {[
-                { label: "Session configured",  done: !!session,                                      sub: "Worker & assignment set" },
-                { label: "Camera ready",         done: cameraReady,                                   sub: "Video feed active" },
-                { label: "Integrity monitor on", done: integrityReady,                                sub: "MediaPipe running" },
-                { label: "First question asked", done: transcript.length > 0,                         sub: "AI has spoken" },
-                { label: "Worker responded",     done: transcript.some(t => t.speaker === "worker"),  sub: "First answer captured" },
-                { label: "3+ exchanges",         done: transcript.length >= 6,                        sub: `${Math.min(transcript.length, 6)}/6 ${"messages"}` },
-                { label: "Snapshot captured",    done: !!latestSnapshot,                              sub: latestSnapshot ? `${"Score"} ${Math.round(latestSnapshot.quality_score)}%` : ("Not yet") },
-                { label: "Session complete",     done: sessionDone,                                   sub: sessionDone ? `${"Final"}: ${Math.round(liveScore)}%` : ("End to finish") },
-              ].map((task, i) => (
+              {copy.sidebar_tasks.map((t, i) => {
+                const doneArr = [!!session, cameraReady, integrityReady, transcript.length > 0, transcript.some(x => x.speaker === "worker"), transcript.length >= 6, !!latestSnapshot, sessionDone];
+                const done = doneArr[i];
+                const sub = i === 5 ? `${Math.min(transcript.length, 6)}/6 ${t.sub}`
+                  : i === 6 ? (latestSnapshot ? `${t.sub_score} ${Math.round(latestSnapshot.quality_score)}%` : t.sub_none)
+                  : i === 7 ? (sessionDone ? `${t.sub_final}: ${Math.round(liveScore)}%` : t.sub_end)
+                  : t.sub;
+                const task = { label: t.label, done, sub };
+                return (
                 <div key={i} style={{
                   display: "flex", gap: 9, padding: "8px 6px",
                   borderRadius: 10, marginBottom: 1,
@@ -775,12 +1195,12 @@ export default function ScreeningRoomPage() {
                     }}>{task.sub}</p>
                   </div>
                 </div>
-              ))}
+              ); })}
             </div>
 
                         <div style={{ padding: "10px 12px 12px", borderTop: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.7)" }}>{"AI Score"}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.7)" }}>{copy.sidebar_score}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
               </div>
               <div style={{ height: 3, background: "rgba(35,49,79,0.08)", borderRadius: 999, overflow: "hidden" }}>
@@ -789,12 +1209,12 @@ export default function ScreeningRoomPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
                 <button onClick={() => setSetupOpen(true)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(35,49,79,0.14)", background: "#ffffff", color: "#23314f", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                   <Settings size={12} />
-                  {session ? ("Reconfigure") : ("Setup Session")}
+                  {session ? copy.sidebar_reconfigure : copy.sidebar_setup}
                 </button>
                 {isSessionLive && (
                   <button onClick={finishScreening} disabled={isSubmitting} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 12px", borderRadius: 999, border: "1px solid rgba(59,130,246,0.2)", background: "rgba(59,130,246,0.08)", color: "#3b82f6", fontSize: 12, fontWeight: 600, cursor: isSubmitting ? "not-allowed" : "pointer" }}>
                     <Square size={10} fill="#3b82f6" />
-                    {"End Session"}
+                    {copy.sidebar_end}
                   </button>
                 )}
               </div>
@@ -820,17 +1240,17 @@ export default function ScreeningRoomPage() {
 
               <div style={{ textAlign: "center", maxWidth: 400 }}>
                 <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(59,130,246,0.72)", margin: "0 0 8px" }}>
-                  {"Current Question"}
+                  {copy.current_q_label}
                 </p>
                 <p style={{ fontSize: "clamp(13px,1.6vw,15px)", color: "#71675d", lineHeight: 1.75, margin: 0, minHeight: 42 }}>
-                  {currentQuestion || (session ? ("Waiting for AI...") : ("Set up a session to begin."))}
+                  {currentQuestion || (session ? copy.waiting_ai : copy.setup_to_begin)}
                 </p>
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <VoiceWave active={aiSpeaking} color="#3b82f6" />
                 <span style={{ fontSize: 9, color: "rgba(59,130,246,0.65)", letterSpacing: 2, fontWeight: 700, textTransform: "uppercase" }}>
-                  {aiSpeaking ? ("AI Speaking") : "Idle"}
+                  {aiSpeaking ? copy.ai_speaking : copy.idle}
                 </span>
               </div>
             </div>
@@ -841,15 +1261,15 @@ export default function ScreeningRoomPage() {
             <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
               <div style={{ padding: "10px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.72)" }}>
-                  {"Live Transcript"}
+                  {copy.live_transcript}
                 </span>
-                <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} {"total"}</span>
+                <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} {copy.total}</span>
               </div>
 
               <div ref={transcriptListRef} style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overscrollBehavior: "contain" }}>
                 {transcript.length === 0 ? (
                   <p style={{ fontSize: 12, color: "rgba(113,103,93,0.6)", textAlign: "center", marginTop: 20, fontStyle: "italic" }}>
-                    {"Transcript appears after session starts."}
+                    {copy.transcript_empty}
                   </p>
                 ) : (
                   visibleTranscript.map((line, i) => <TranscriptMsg key={`${line.timestamp}-${i}`} line={line} />)
@@ -866,10 +1286,10 @@ export default function ScreeningRoomPage() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
-                    {"Voice Capture"}
+                    {copy.voice_capture}
                   </p>
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                    {integrityPaused ? "Interview paused until integrity clears." : isListening ? "Recording… tap mic again to stop." : isSessionLive ? "Tap the mic to record a spoken answer." : "Start a session to enable live voice capture."}
+                    {integrityPaused ? copy.status_paused : isListening ? copy.status_recording : isSessionLive ? copy.status_tap_mic : copy.status_start_session}
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -877,10 +1297,11 @@ export default function ScreeningRoomPage() {
                     onClick={startVoiceInput}
                     disabled={!isSessionLive || integrityPaused}
                     title="Start voice capture"
+                    className="srp-mic-btn"
                     style={{
                       ...iconBtn(isListening, "#3b82f6"),
-                      width: 44,
-                      height: 44,
+                      width: 48,
+                      height: 48,
                       opacity: !isSessionLive ? 0.35 : 1,
                       animation: isListening ? "orbPulse 1s ease-in-out infinite" : "none",
                     }}
@@ -903,7 +1324,7 @@ export default function ScreeningRoomPage() {
                   <textarea
                     value={textFallbackInput}
                     onChange={e => setTextFallbackInput(e.target.value)}
-                    placeholder="Type worker response here..."
+                    placeholder={copy.type_response_ph}
                     rows={2}
                     style={{ ...inputBase, flex: 1, fontSize: 12 }}
                     onKeyDown={e => {
@@ -926,7 +1347,7 @@ export default function ScreeningRoomPage() {
                     disabled={!textFallbackInput.trim() || isSubmitting}
                     style={{ padding: "8px 14px", borderRadius: 12, border: "none", background: "#3b82f6", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}
                   >
-                    Send
+                    {copy.send}
                   </button>
                 </div>
               )}
@@ -981,9 +1402,9 @@ export default function ScreeningRoomPage() {
                   position: "absolute", inset: 0, background: "rgba(35,49,79,0.76)",
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: 24,
                 }}>
-                  <p style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", textAlign: "center" }}>{"Multiple people detected"}</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, color: "#dbeafe", textAlign: "center" }}>{copy.multi_face_title}</p>
                   <p style={{ fontSize: 13, color: "#bfdbfe", textAlign: "center", maxWidth: 280 }}>
-                    {`Only you should be visible. Pausing in ${integrityWarningSeconds}s...`}
+                    {copy.multi_face_sub(integrityWarningSeconds)}
                   </p>
                 </div>
               )}
@@ -995,149 +1416,34 @@ export default function ScreeningRoomPage() {
                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24,
                 }}>
                   <ShieldAlert size={40} color="#93c5fd" />
-                  <p style={{ fontSize: 17, fontWeight: 700, color: "#dbeafe" }}>{"Interview Paused"}</p>
+                  <p style={{ fontSize: 17, fontWeight: 700, color: "#dbeafe" }}>{copy.paused_title}</p>
                   <p style={{ fontSize: 13, color: "#bfdbfe", textAlign: "center", maxWidth: 300, lineHeight: 1.65 }}>
-                    {integrityPauseReason === "face_absent" ? ("Face left the frame. Please return to camera.")
-                      : integrityPauseReason === "face_change" ? ("Face identity changed. Recruiter verification required.")
-                      : ("Multiple faces were detected.")}
+                    {integrityPauseReason === "face_absent" ? copy.pause_face_absent
+                      : integrityPauseReason === "face_change" ? copy.pause_face_change
+                      : copy.pause_multi}
                   </p>
                   {integrityPauseReason !== "face_change" && (
                     <button onClick={resumeAfterPause} style={{
                       padding: "9px 24px", borderRadius: 30, border: "none",
                       background: "#23314f", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
                     }}>
-                      I'm alone - Resume
+                      {copy.resume_btn}
                     </button>
                   )}
                 </div>
               )}
 
-              {/* session complete — detailed scorecard */}
+              {/* session complete — Passport Card */}
               {sessionDone && (
                 <div style={{
-                  position: "absolute", inset: 0, background: "rgba(5,10,24,0.97)",
-                  display: "flex", flexDirection: "column", alignItems: "stretch",
-                  overflowY: "auto", padding: "20px 18px",
+                  position: "absolute", inset: 0, background: "rgba(5,10,24,0.98)",
+                  overflowY: "auto", display: "flex", alignItems: "flex-start",
+                  justifyContent: "center", padding: "16px 12px",
                 }}>
-                  {/* kicker */}
-                  <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: "uppercase", color: "#93c5fd", margin: "0 0 10px 0", textAlign: "center" }}>
-                    Shramik Passport
-                  </p>
-
-                  {/* overall score + recommendation */}
-                  <div style={{ textAlign: "center", marginBottom: 14 }}>
-                    <div style={{ fontSize: 52, fontWeight: 800, color: scoreColor, textShadow: `0 0 40px ${scoreColor}55`, lineHeight: 1 }}>
-                      {Math.round(liveScore)}%
-                    </div>
-                    <p style={{ fontSize: 10, color: "#475569", margin: "4px 0 8px 0" }}>Overall Score</p>
-                    {session?.recommendation && (
-                      <div style={{
-                        display: "inline-block",
-                        padding: "5px 16px", borderRadius: 20,
-                        background: `${scoreColor}18`, border: `1px solid ${scoreColor}45`,
-                        fontSize: 11, fontWeight: 800, color: scoreColor, textTransform: "uppercase", letterSpacing: 2,
-                      }}>
-                        {session.recommendation}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* AI summary */}
-                  {session?.summary && (
-                    <p style={{
-                      fontSize: 11, color: "#94a3b8", lineHeight: 1.6, margin: "0 0 14px 0",
-                      padding: "10px 12px", background: "rgba(59,130,246,0.06)",
-                      borderRadius: 8, borderLeft: "3px solid #3b82f6",
-                    }}>
-                      {session.summary}
-                    </p>
-                  )}
-
-                  {/* rubric breakdown */}
-                  {session?.rubric_scores && (
-                    <div style={{ marginBottom: 14 }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 8px 0" }}>
-                        Skill Breakdown
-                      </p>
-                      {[
-                        { key: "stitch_quality",           label: "Stitch Quality",    weight: "32%" },
-                        { key: "machine_familiarity",      label: "Machine Skill",     weight: "26%" },
-                        { key: "technical_knowledge",      label: "Technical Know.",   weight: "24%" },
-                        { key: "fabric_material_knowledge",label: "Fabric Knowledge",  weight: "12%" },
-                        { key: "communication_confidence", label: "Communication",     weight: "6%"  },
-                        { key: "integrity_compliance",     label: "Integrity",         weight: ""    },
-                      ].map(({ key, label, weight }) => {
-                        const score = Math.round(session.rubric_scores[key] ?? 0);
-                        const barColor = score >= 70 ? "#22c55e" : score >= 50 ? "#f59e0b" : "#ef4444";
-                        return (
-                          <div key={key} style={{ marginBottom: 8 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                              <span style={{ fontSize: 10, color: "#cbd5e1" }}>
-                                {label}{weight && <span style={{ color: "#475569", marginLeft: 4 }}>({weight})</span>}
-                              </span>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: barColor }}>{score}</span>
-                            </div>
-                            <div style={{ height: 4, borderRadius: 3, background: "rgba(255,255,255,0.07)" }}>
-                              <div style={{ height: "100%", borderRadius: 3, background: barColor, width: `${score}%`, transition: "width 0.8s ease" }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* integrity summary */}
-                  {integrityLog && (
-                    <div style={{ marginBottom: 14, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)" }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 6px 0" }}>
-                        Integrity Log
-                      </p>
-                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                        {[
-                          { label: "Multi-face", val: integrityLog.multiface_events || 0 },
-                          { label: "Face absent", val: integrityLog.face_absent_events || 0 },
-                          { label: "Gaze off", val: integrityLog.gaze_deviation_events || 0 },
-                        ].map(({ label, val }) => (
-                          <div key={label} style={{ fontSize: 10, color: "#475569" }}>
-                            {label}: <strong style={{ color: val > 0 ? "#f59e0b" : "#94a3b8" }}>{val}</strong>
-                          </div>
-                        ))}
-                        <div style={{ fontSize: 10, color: "#475569" }}>
-                          Flag: <strong style={{
-                            color: integrityLog.overall_flag === "clear" ? "#22c55e"
-                              : integrityLog.overall_flag === "critical_flag" ? "#ef4444"
-                              : "#f59e0b",
-                          }}>
-                            {integrityLog.overall_flag || "clear"}
-                          </strong>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* snapshot feedback */}
-                  {latestSnapshot && (
-                    <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)" }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#475569", margin: "0 0 6px 0" }}>
-                        Stitch Snapshot
-                      </p>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, color: "#cbd5e1", flex: 1, lineHeight: 1.5 }}>{latestSnapshot.feedback}</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor, flexShrink: 0 }}>
-                          {Math.round(latestSnapshot.quality_score)}%
-                        </span>
-                      </div>
-                      {latestSnapshot.focus_areas?.length > 0 && (
-                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                          {latestSnapshot.focus_areas.map(a => (
-                            <span key={a} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 10, background: "rgba(59,130,246,0.12)", color: "#93c5fd" }}>
-                              {a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <PassportCard
+                    session={{ ...session, integrity_log: integrityLog }}
+                    worker={session ? { id: session.worker_id, name: session.worker_name, specialization: session.assignment } : null}
+                  />
                 </div>
               )}
 
@@ -1156,7 +1462,7 @@ export default function ScreeningRoomPage() {
                   animation: isSessionLive ? "recPulse 1.5s ease-in-out infinite" : "none",
                 }} />
                 <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: isSessionLive ? "#dbeafe" : "#334155" }}>
-                  {isSessionLive ? ("Recording") : ("No Session")}
+                  {isSessionLive ? copy.recording : copy.no_session_badge}
                 </span>
               </div>
 
@@ -1171,7 +1477,7 @@ export default function ScreeningRoomPage() {
                 color: integrityReady ? "#3b82f6" : "#3b82f6",
               }}>
                 {integrityReady ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
-                {integrityReady ? ("AI Monitor On") : ("AI Monitor Off")}
+                {integrityReady ? copy.ai_monitor_on : copy.ai_monitor_off}
               </div>
 
               <button
@@ -1189,7 +1495,7 @@ export default function ScreeningRoomPage() {
                 aria-pressed={handOverlayOn}
                 title="Toggle hand landmarks"
               >
-                Hands {handOverlayOn ? ("On") : ("Off")}
+                {handOverlayOn ? copy.hands_on : copy.hands_off}
               </button>
             </div>
 
@@ -1216,7 +1522,7 @@ export default function ScreeningRoomPage() {
                   </span>
                 </div>
               ) : (
-                <p style={{ fontSize: 11, color: "#71675d", flex: 1, fontStyle: "italic", margin: 0 }}>{"No snapshot captured yet."}</p>
+                <p style={{ fontSize: 11, color: "#71675d", flex: 1, fontStyle: "italic", margin: 0 }}>{copy.no_snapshot}</p>
               )}
 
               <button
@@ -1231,7 +1537,7 @@ export default function ScreeningRoomPage() {
                   opacity: (!session || !cameraReady) ? 0.35 : 1,
                 }}
               >
-                <Camera size={12} /> Snapshot
+                <Camera size={12} /> {copy.snapshot_btn}
               </button>
 
               {integrityLog && (
@@ -1242,7 +1548,7 @@ export default function ScreeningRoomPage() {
                     background: "rgba(35,49,79,0.05)", border: "1px solid rgba(35,49,79,0.08)",
                     fontSize: 11, fontWeight: 600, color: "#71675d",
                   }}>
-                    <ChevronDown size={11} /> Log
+                    <ChevronDown size={11} /> {copy.log_label}
                   </summary>
                   <div style={{
                     position: "absolute", bottom: 36, right: 0,
@@ -1251,11 +1557,11 @@ export default function ScreeningRoomPage() {
                     fontSize: 11, lineHeight: 2, color: "#71675d", minWidth: 210,
                     boxShadow: "0 18px 48px rgba(35,49,79,0.18)",
                   }}>
-                    <p style={{ margin: 0 }}>{"Multiface"}: {integrityLog.multiface_events || 0}</p>
-                    <p style={{ margin: 0 }}>{"Face absent"}: {integrityLog.face_absent_events || 0}</p>
-                    <p style={{ margin: 0 }}>{"Gaze deviation"}: {integrityLog.gaze_deviation_events || 0}</p>
-                    <p style={{ margin: 0 }}>{"Face change"}: {integrityLog.face_change_detected ? <span style={{ color: "#3b82f6" }}>{"warning"}</span> : "false"}</p>
-                    <p style={{ margin: 0 }}>{"Flag"}: <strong style={{ color: integrityLog.overall_flag === "clear" ? "#2563eb" : "#3b82f6" }}>{integrityLog.overall_flag || "clear"}</strong></p>
+                    <p style={{ margin: 0 }}>{copy.log_multiface}: {integrityLog.multiface_events || 0}</p>
+                    <p style={{ margin: 0 }}>{copy.log_absent}: {integrityLog.face_absent_events || 0}</p>
+                    <p style={{ margin: 0 }}>{copy.log_gaze}: {integrityLog.gaze_deviation_events || 0}</p>
+                    <p style={{ margin: 0 }}>{copy.log_change}: {integrityLog.face_change_detected ? <span style={{ color: "#3b82f6" }}>{copy.log_warning}</span> : "false"}</p>
+                    <p style={{ margin: 0 }}>{copy.log_flag}: <strong style={{ color: integrityLog.overall_flag === "clear" ? "#2563eb" : "#3b82f6" }}>{integrityLog.overall_flag || "clear"}</strong></p>
                   </div>
                 </details>
               )}

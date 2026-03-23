@@ -1,33 +1,15 @@
 import "@/App.css";
-import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
-import { createContext, useContext, useState } from "react";
-import LandingPage from "@/pages/LandingPage";
+import { useState } from "react";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import WorkersBoardPage from "@/pages/WorkersBoardPage";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/i18n/language";
+import { ROLES, RoleProvider, roleConfig, useRole } from "@/context/role";
 
-/* ─── Role context ───────────────────────────────────────────── */
-const ROLES = ["worker", "recruiter", "admin"];
-
-const roleConfig = {
-  worker:    { label: "Worker",    labelHi: "श्रमिक",    color: "#2563eb", nav: ["/screening", "/jobs"] },
-  recruiter: { label: "Recruiter", labelHi: "भर्तीकर्ता", color: "#7c3aed", nav: ["/jobs"] },
-  admin:     { label: "Admin",     labelHi: "एडमिन",    color: "#0f766e", nav: ["/admin"] },
-};
-
-const RoleContext = createContext(null);
-
-function RoleProvider({ children }) {
-  const [role, setRole] = useState("recruiter");
-  return <RoleContext.Provider value={{ role, setRole }}>{children}</RoleContext.Provider>;
-}
-
-export function useRole() {
-  return useContext(RoleContext);
-}
+export { useRole };
 
 /* ─── Copy ───────────────────────────────────────────────────── */
 const appCopy = {
@@ -207,7 +189,7 @@ function AppShell() {
         </div>
       )}
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/screening" replace />} />
         <Route path="/screening" element={<ScreeningRoomPage />} />
         <Route path="/jobs" element={<WorkersBoardPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />

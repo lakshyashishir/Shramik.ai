@@ -86,12 +86,12 @@ const DUMMY_REPORTS = [
       gaze_deviation_events: 5,
     },
     transcript: [
-      { speaker: "ai",     text: "Mohan ji, kurte mein kya defects dhundhte hain aap?", timestamp: "" },
-      { speaker: "worker", text: "Dhaga toot jaye toh defect hota hai.", timestamp: "" },
-      { speaker: "ai",     text: "Aur koi defect types jaante hain — jaise puckering ya skip stitch?", timestamp: "" },
-      { speaker: "worker", text: "Nahi, ye nahi pata mujhe.", timestamp: "" },
-      { speaker: "ai",     text: "Theek hai. Agar seam crooked ho toh kya karenge?", timestamp: "" },
-      { speaker: "worker", text: "Master ko dikhaunga.", timestamp: "" },
+      { speaker: "ai",     text: "मोहन जी, कुर्ते में क्या डिफेक्ट्स ढूँढते हैं आप?", timestamp: "" },
+      { speaker: "worker", text: "धागा टूट जाए तो डिफेक्ट होता है।", timestamp: "" },
+      { speaker: "ai",     text: "और कोई डिफेक्ट टाइप जानते हैं — जैसे पकरिंग या स्किप स्टिच?", timestamp: "" },
+      { speaker: "worker", text: "नहीं, यह नहीं पता मुझे।", timestamp: "" },
+      { speaker: "ai",     text: "ठीक है। अगर सीम टेढ़ी हो तो क्या करेंगे?", timestamp: "" },
+      { speaker: "worker", text: "मास्टर को दिखाऊँगा।", timestamp: "" },
     ],
   },
 ];
@@ -103,8 +103,8 @@ const DUMMY_LIVE = [
     assignment: "Sew sleeve placket on a cotton shirt",
     live_score: 74,
     transcript: [
-      { speaker: "ai",     text: "Priya ji, placket lagane ke liye aap kaunsa stitch use karti hain?", timestamp: "" },
-      { speaker: "worker", text: "Main lockstitch use karti hoon aur corners pe backtrack karti hoon.", timestamp: "" },
+      { speaker: "ai",     text: "प्रिया जी, प्लैकेट लगाने के लिए आप कौनसी स्टिच उपयोग करती हैं?", timestamp: "" },
+      { speaker: "worker", text: "मैं लॉकस्टिच उपयोग करती हूँ और कॉर्नर पर बैकट्रैक करती हूँ।", timestamp: "" },
     ],
   },
 ];
@@ -506,16 +506,16 @@ export default function AdminDashboardPage() {
   }, [liveSessions, reports, workers, overrides]);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-8 px-6 py-8 md:px-10" data-testid="admin-dashboard-page">
+    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 md:space-y-8 md:px-10 md:py-8" data-testid="admin-dashboard-page">
       {/* Header */}
       <section className="space-y-2">
         <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">{copy.kicker}</p>
-        <h1 className="font-heading text-4xl text-primary md:text-5xl">{copy.title}</h1>
+        <h1 className="font-heading text-3xl text-primary md:text-5xl">{copy.title}</h1>
         <p className="max-w-3xl text-sm text-muted-foreground md:text-base">{copy.desc}</p>
       </section>
 
       {/* Metrics */}
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <MetricCard title={copy.metrics.workers[0]}  value={stats.workers}          subtitle={copy.metrics.workers[1]}  icon={Users}         testId="metric-total-workers" />
         <MetricCard title={copy.metrics.active[0]}   value={stats.active}           subtitle={copy.metrics.active[1]}   icon={Activity}      testId="metric-active-sessions" />
         <MetricCard title={copy.metrics.passRate[0]} value={`${stats.passRate}%`}   subtitle={copy.metrics.passRate[1]} icon={CheckCircle2}  testId="metric-pass-rate" />
@@ -523,7 +523,7 @@ export default function AdminDashboardPage() {
       </section>
 
       {/* Live + Reports */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12 md:gap-6">
         {/* Live sessions */}
         <Card className="lg:col-span-5">
           <CardHeader>

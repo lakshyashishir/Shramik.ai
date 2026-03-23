@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "shramik.ai.locale";
-const DEFAULT_LOCALE = "en";
+const DEFAULT_LOCALE = "hi";
 const SUPPORTED_LOCALES = ["en", "hi"];
 const LocaleContext = createContext(null);
 

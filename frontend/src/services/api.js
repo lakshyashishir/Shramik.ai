@@ -29,4 +29,6 @@ export const screeningApi = {
     (await client.post("/speech/stt", formData, { headers: { "Content-Type": "multipart/form-data" } })).data,
   ttsSynthesize: async (text, language = "hi-IN") =>
     (await client.post("/speech/tts", { text, language }, { responseType: "blob" })).data,
+  onboardWorkerByVoice: async (payload) =>
+    (await client.post("/workers/onboard", payload)).data,
 };

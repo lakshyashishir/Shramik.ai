@@ -308,8 +308,8 @@ function HireModal({ tailor, onClose, copy }) {
   if (!tailor) return null;
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18, 24, 39, 0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 28, padding: "30px 26px", boxShadow: "0 24px 80px rgba(35,49,79,0.18)", position: "relative" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18, 24, 39, 0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 0 0 0" }}>
+      <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: "28px 28px 0 0", padding: "clamp(20px, 4vw, 30px) clamp(16px, 4vw, 26px)", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)", position: "relative", maxHeight: "90dvh", overflowY: "auto" }}>
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 18, border: "none", background: "none", color: palette.muted, fontSize: 22, cursor: "pointer" }}>x</button>
         {!sent ? (
           <>
@@ -393,8 +393,8 @@ export default function TailorBoard() {
   };
 
   return (
-    <main style={{ maxWidth: 1240, margin: "0 auto", padding: "28px 24px 64px", color: palette.text, fontFamily: "Manrope, sans-serif" }}>
-      <section style={{ background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 32, padding: "28px 28px 22px", boxShadow: "0 18px 50px rgba(35,49,79,0.06)" }}>
+    <main style={{ maxWidth: 1240, margin: "0 auto", padding: "clamp(16px, 4vw, 28px) clamp(12px, 3vw, 24px) 64px", color: palette.text, fontFamily: "Manrope, sans-serif" }}>
+      <section style={{ background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 32, padding: "clamp(16px, 4vw, 28px) clamp(16px, 4vw, 28px) 22px", boxShadow: "0 18px 50px rgba(35,49,79,0.06)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
           <div style={{ maxWidth: 620 }}>
             <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: palette.accent, margin: 0 }}>{copy.heroKicker}</p>
