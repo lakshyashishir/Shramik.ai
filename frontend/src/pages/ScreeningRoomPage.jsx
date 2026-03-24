@@ -5,6 +5,7 @@ import { screeningApi } from "@/services/api";
 import { useLanguage } from "@/i18n/language";
 import { useRole } from "@/context/role";
 import PassportCard from "@/components/PassportCard";
+import { LanguageToggle } from "@/App";
 
 /* ─── WAV encoder (SarvamAI requires wav/mp3, not webm) ─────── */
 async function blobToWav(blob) {
@@ -275,7 +276,7 @@ function AiOrb({ speaking, paused, score }) {
   const color = paused ? "#3b82f6" : speaking ? "#3b82f6" : "#23314f";
   const glow = paused ? "rgba(59,130,246,0.24)" : speaking ? "rgba(59,130,246,0.2)" : "rgba(35,49,79,0.16)";
   return (
-    <div aria-label="AI Interviewer" role="img" style={{ position: "relative", width: 180, height: 180, margin: "0 auto", flexShrink: 0 }}>
+    <div aria-label="AI Interviewer" role="img" className="srp-orb-wrap" style={{ position: "relative", width: 180, height: 180, margin: "0 auto", flexShrink: 0 }}>
       <div
         style={{
           position: "absolute",
@@ -683,6 +684,7 @@ export default function ScreeningRoomPage() {
   const [aiSpeaking, setAiSpeaking] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [sessionDone, setSessionDone] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [integrityLog, setIntegrityLog] = useState(null);
   const [integrityPaused, setIntegrityPaused] = useState(false);
   const [integrityPauseReason, setIntegrityPauseReason] = useState(null);
@@ -1081,19 +1083,31 @@ export default function ScreeningRoomPage() {
         .srp-mobile-bar { display: none; }
         @media (max-width: 768px) {
           .srp-sidebar { display: none !important; }
-          .srp-split { flex-direction: column !important; }
-          .srp-left, .srp-right { width: 100% !important; min-height: 44dvh !important; border-right: none !important; }
-          .srp-left { border-bottom: 1px solid rgba(35,49,79,0.08) !important; }
-          .srp-mobile-bar { display: flex !important; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(35,49,79,0.08); background: #fff; flex-shrink: 0; gap: 10px; }
-          .srp-mic-btn { width: 56px !important; height: 56px !important; }
-          /* Minimum touch targets for all action buttons */
+          /* Full-bleed container — no card border/shadow on mobile */
+          .srp-split { flex-direction: column !important; border-radius: 0 !important; border: none !important; box-shadow: none !important; margin: 0 !important; }
+          /* Video on top, transcript below */
+          .srp-right { order: -1 !important; width: 100% !important; flex: none !important; min-height: 0 !important; height: 36dvh !important; border-right: none !important; border-bottom: 1px solid rgba(35,49,79,0.06) !important; }
+          .srp-left { width: 100% !important; flex: 1 !important; min-height: 0 !important; border-right: none !important; overflow: hidden !important; }
+          /* Prevent horizontal overflow */
+          .srp { overflow-x: hidden !important; }
+          /* Mobile top bar */
+          .srp-mobile-bar { display: flex !important; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(35,49,79,0.08); background: #fff; flex-shrink: 0; gap: 8px; }
+          /* Smaller orb on mobile */
+          .srp-orb-wrap { width: 100px !important; height: 100px !important; }
+          /* Tighter orb section */
+          .srp-orb-section { padding: 12px 16px 8px !important; gap: 10px !important; }
+          /* Tighter transcript list padding */
+          .srp-transcript-list { padding: 0 12px 8px !important; }
+          /* Voice area compact */
+          .srp-voice-area { padding: 8px 12px !important; }
+          /* Touch targets */
+          .srp-mic-btn { width: 52px !important; height: 52px !important; }
           .srp button { min-height: 44px; min-width: 44px; }
-          /* Minimum font sizes — no tiny text on mobile */
-          .srp p, .srp span, .srp label { font-size: max(var(--srp-fs, 14px), 14px); }
-          /* Mobile end-session button — increase hit area */
-          .srp-mobile-end-btn { padding: 10px 16px !important; font-size: 12px !important; min-height: 44px !important; }
-          /* Full-width modals on small screens */
-          .srp-modal { border-radius: 24px 24px 0 0 !important; max-height: 92dvh !important; }
+          .srp-mobile-end-btn { padding: 8px 14px !important; font-size: 12px !important; min-height: 44px !important; }
+          /* Full-width modals as bottom sheet */
+          .srp-modal { border-radius: 20px 20px 0 0 !important; max-height: 92dvh !important; }
+          /* Right panel bottom strip */
+          .srp-right-bottom { padding: 8px 10px !important; }
         }
         @media (min-width: 769px) {
           .srp-mobile-bar { display: none !important; }
@@ -1114,6 +1128,46 @@ export default function ScreeningRoomPage() {
         display: "flex", flexDirection: "column",
         overflow: "hidden",
       }}>
+        {/* ── Floating action buttons — top-right, desktop only ── */}
+        <div style={{
+          position: "fixed", top: 16, right: 16, zIndex: 50,
+          alignItems: "center", gap: 8,
+        }} className="hidden md:flex">
+          <button
+            onClick={() => setSetupOpen(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "8px 14px", borderRadius: 999,
+              border: "1px solid rgba(35,49,79,0.14)",
+              background: "rgba(255,255,255,0.92)", backdropFilter: "blur(8px)",
+              color: "#23314f", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              boxShadow: "0 2px 12px rgba(35,49,79,0.08)",
+            }}
+          >
+            <Settings size={12} />
+            {session ? copy.sidebar_reconfigure : copy.sidebar_setup}
+          </button>
+          {isSessionLive && (
+            <button
+              onClick={finishScreening}
+              disabled={isSubmitting}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 999,
+                border: "1px solid rgba(59,130,246,0.25)",
+                background: "rgba(239,246,255,0.95)", backdropFilter: "blur(8px)",
+                color: "#3b82f6", fontSize: 12, fontWeight: 700,
+                cursor: isSubmitting ? "not-allowed" : "pointer",
+                boxShadow: "0 2px 12px rgba(59,130,246,0.1)",
+              }}
+            >
+              <Square size={10} fill="#3b82f6" />
+              {copy.sidebar_end}
+            </button>
+          )}
+          <LanguageToggle compact />
+        </div>
+
         {/* Mobile top bar — hidden on desktop */}
         <div className="srp-mobile-bar">
           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -1122,7 +1176,8 @@ export default function ScreeningRoomPage() {
               {session ? `${currentPhase} ${copy.mobile_phase}` : copy.mobile_no_session}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <LanguageToggle compact />
             <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
             {isSessionLive && (
               <button onClick={finishScreening} disabled={isSubmitting} className="srp-mobile-end-btn" style={{ padding: "8px 14px", borderRadius: 20, border: "none", background: "rgba(59,130,246,0.1)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
@@ -1141,13 +1196,29 @@ export default function ScreeningRoomPage() {
 
           {/* ════ TASK CHECKLIST SIDEBAR ════ */}
           <aside className="srp-sidebar" aria-label="Session Progress" style={{
-            width: 200, flexShrink: 0,
+            width: sidebarOpen ? 200 : 36, flexShrink: 0,
             borderRight: "1px solid rgba(35,49,79,0.08)",
             background: "#ffffff",
             display: "flex", flexDirection: "column",
             overflow: "hidden",
+            transition: "width 0.25s ease",
           }}>
-            <div style={{ padding: "14px 14px 8px", borderBottom: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
+            {/* Collapse toggle */}
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              title={sidebarOpen ? "Hide logs" : "Show logs"}
+              style={{
+                flexShrink: 0, width: "100%", padding: "10px 0",
+                border: "none", borderBottom: "1px solid rgba(35,49,79,0.08)",
+                background: "transparent", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: sidebarOpen ? "flex-end" : "center",
+                paddingRight: sidebarOpen ? 10 : 0,
+                color: "rgba(35,49,79,0.4)", fontSize: 13,
+              }}
+            >
+              {sidebarOpen ? "←" : "☰"}
+            </button>
+            {sidebarOpen && <div style={{ padding: "14px 14px 8px", borderBottom: "1px solid rgba(35,49,79,0.08)", flexShrink: 0 }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2.5, textTransform: "uppercase", color: "rgba(113,103,93,0.7)", margin: 0 }}>
                 {copy.sidebar_heading}
               </p>
@@ -1159,9 +1230,9 @@ export default function ScreeningRoomPage() {
                   </span>
                 </div>
               )}
-            </div>
+            </div>}
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
+            {sidebarOpen && <><div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
               {copy.sidebar_tasks.map((t, i) => {
                 const doneArr = [!!session, cameraReady, integrityReady, transcript.length > 0, transcript.some(x => x.speaker === "worker"), transcript.length >= 6, !!latestSnapshot, sessionDone];
                 const done = doneArr[i];
@@ -1226,7 +1297,7 @@ export default function ScreeningRoomPage() {
                   </button>
                 )}
               </div>
-            </div>
+            </div></>}
           </aside>
 
           {/* ════ LEFT — AI Orb + Transcript ════ */}
@@ -1239,7 +1310,7 @@ export default function ScreeningRoomPage() {
           }}>
 
             {/* orb + question */}
-            <div style={{
+            <div className="srp-orb-section" style={{
               display: "flex", flexDirection: "column", alignItems: "center",
               gap: 22, padding: "clamp(20px,3.5vw,44px) 24px 20px",
               flexShrink: 0,
@@ -1274,7 +1345,7 @@ export default function ScreeningRoomPage() {
                 <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} {copy.total}</span>
               </div>
 
-              <div ref={transcriptListRef} style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overscrollBehavior: "contain" }}>
+              <div ref={transcriptListRef} className="srp-transcript-list" style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overscrollBehavior: "contain" }}>
                 {transcript.length === 0 ? (
                   <p style={{ fontSize: 12, color: "rgba(113,103,93,0.6)", textAlign: "center", marginTop: 20, fontStyle: "italic" }}>
                     {copy.transcript_empty}
@@ -1285,7 +1356,7 @@ export default function ScreeningRoomPage() {
               </div>
             </div>
 
-                        <div style={{
+                        <div className="srp-voice-area" style={{
               padding: "12px 14px",
               borderTop: "1px solid rgba(35,49,79,0.08)",
               background: "#ffffff",

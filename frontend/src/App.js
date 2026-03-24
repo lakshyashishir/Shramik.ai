@@ -87,7 +87,7 @@ function RoleToggle({ compact = false }) {
 }
 
 /* ─── Language Toggle ─────────────────────────────────────────── */
-function LanguageToggle({ compact = false }) {
+export function LanguageToggle({ compact = false }) {
   const { locale, setLocale, supportedLocales } = useLanguage();
   const copy = appCopy[locale] ?? appCopy.en;
 
@@ -186,12 +186,6 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {!hideNavigation && <MainNavigation />}
-      {hideNavigation && (
-        <div className="fixed right-4 top-4 z-40 flex items-center gap-2">
-          <RoleToggle compact />
-          <LanguageToggle compact />
-        </div>
-      )}
       <Routes>
         <Route path="/" element={<Navigate to="/screening" replace />} />
         <Route path="/screening" element={<ScreeningRoomPage />} />
