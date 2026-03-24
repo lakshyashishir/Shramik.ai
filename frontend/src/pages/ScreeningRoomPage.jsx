@@ -622,8 +622,8 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
   const field = { width: "100%", padding: "10px 12px", boxSizing: "border-box", background: "#ffffff", border: "1px solid rgba(35,49,79,0.12)", borderRadius: 14, color: "#23314f", fontSize: 13, outline: "none", fontFamily: "inherit" };
   if (!open) return null;
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(18,24,39,0.34)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div onClick={(event) => event.stopPropagation()} style={{ background: "#ffffff", border: "1px solid rgba(35,49,79,0.1)", borderRadius: 24, padding: "28px 24px", width: "100%", maxWidth: 460, boxShadow: "0 32px 80px rgba(35,49,79,0.18)" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(18,24,39,0.34)", backdropFilter: "blur(8px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={(event) => event.stopPropagation()} className="srp-modal" style={{ background: "#ffffff", border: "1px solid rgba(35,49,79,0.1)", borderRadius: 24, padding: "clamp(20px,4vw,28px) clamp(16px,4vw,24px)", width: "100%", maxWidth: 460, maxHeight: "90dvh", overflowY: "auto", WebkitOverflowScrolling: "touch", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: 0 }}>{copy.setup_kicker}</p>
@@ -1085,7 +1085,15 @@ export default function ScreeningRoomPage() {
           .srp-left, .srp-right { width: 100% !important; min-height: 44dvh !important; border-right: none !important; }
           .srp-left { border-bottom: 1px solid rgba(35,49,79,0.08) !important; }
           .srp-mobile-bar { display: flex !important; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(35,49,79,0.08); background: #fff; flex-shrink: 0; gap: 10px; }
-          .srp-mic-btn { width: 54px !important; height: 54px !important; }
+          .srp-mic-btn { width: 56px !important; height: 56px !important; }
+          /* Minimum touch targets for all action buttons */
+          .srp button { min-height: 44px; min-width: 44px; }
+          /* Minimum font sizes — no tiny text on mobile */
+          .srp p, .srp span, .srp label { font-size: max(var(--srp-fs, 14px), 14px); }
+          /* Mobile end-session button — increase hit area */
+          .srp-mobile-end-btn { padding: 10px 16px !important; font-size: 12px !important; min-height: 44px !important; }
+          /* Full-width modals on small screens */
+          .srp-modal { border-radius: 24px 24px 0 0 !important; max-height: 92dvh !important; }
         }
         @media (min-width: 769px) {
           .srp-mobile-bar { display: none !important; }
@@ -1117,7 +1125,7 @@ export default function ScreeningRoomPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
             {isSessionLive && (
-              <button onClick={finishScreening} disabled={isSubmitting} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "rgba(59,130,246,0.1)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={finishScreening} disabled={isSubmitting} className="srp-mobile-end-btn" style={{ padding: "8px 14px", borderRadius: 20, border: "none", background: "rgba(59,130,246,0.1)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
                 {copy.mobile_end}
               </button>
             )}
