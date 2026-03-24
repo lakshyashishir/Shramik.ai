@@ -1,13 +1,15 @@
 import json
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import _get_openai_client
 from app.config import settings
+from app.database import get_db
 from app.models import Worker, WorkerCreate, new_id, utc_now_iso
-from app.services.store import get_worker, list_workers as list_workers_store, save_worker
+from app.services import store
 
 router = APIRouter(tags=["workers"])
 
@@ -34,7 +36,7 @@ class VoiceOnboardRequest(BaseModel):
 
 
 @router.post("/workers", response_model=Worker)
-def create_worker(payload: WorkerCreate) -> Worker:
+async def create_worker(payload: WorkerCreate, db: AsyncSession = Depends(get_db)) -> Worker:
     worker = Worker(
         id=new_id("worker"),
         name=payload.name.strip(),
@@ -42,17 +44,17 @@ def create_worker(payload: WorkerCreate) -> Worker:
         experience_years=int(payload.experience_years),
         created_at=utc_now_iso(),
     )
-    save_worker(worker)
+    await store.create_worker(db, worker)
     return worker
 
 
 @router.get("/workers", response_model=list[Worker])
-def list_workers() -> list[Worker]:
-    return list_workers_store()
+async def list_workers(db: AsyncSession = Depends(get_db)) -> list[Worker]:
+    return await store.get_all_workers(db)
 
 
 @router.post("/workers/onboard", response_model=Worker)
-def onboard_worker_by_voice(payload: VoiceOnboardRequest) -> Worker:
+async def onboard_worker_by_voice(payload: VoiceOnboardRequest, db: AsyncSession = Depends(get_db)) -> Worker:
     """Extract worker info from a Hindi voice transcript using GPT and create a worker record."""
     transcript = payload.voice_transcript.strip()
     if not transcript:
@@ -108,5 +110,5 @@ def onboard_worker_by_voice(payload: VoiceOnboardRequest) -> Worker:
         experience_years=experience_years,
         created_at=utc_now_iso(),
     )
-    save_worker(worker)
+    await store.create_worker(db, worker)
     return worker

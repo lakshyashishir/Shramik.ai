@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import (
     build_default_self_ratings,
@@ -13,6 +14,7 @@ from app.agents.screening_logic import (
     process_phase0_turn,
     run_agent_turn,
 )
+from app.database import get_db
 from app.models import (
     CompleteResponse,
     IntegrityEvent,
@@ -38,14 +40,7 @@ from app.models import (
     new_id,
     utc_now_iso,
 )
-from app.services.store import (
-    get_session as get_session_store,
-    get_worker,
-    list_completed_sessions,
-    list_live_sessions,
-    save_session,
-    save_worker,
-)
+from app.services import store
 
 router = APIRouter(tags=["sessions"])
 ASSIGNMENT_TEMPLATES = {
@@ -69,8 +64,12 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
 
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
-def start_session(payload: SessionStartRequest, locale: str = Query("en")) -> SessionStartResponse:
-    worker = get_worker(payload.worker_id)
+async def start_session(
+    payload: SessionStartRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+) -> SessionStartResponse:
+    worker = await store.get_worker(db, payload.worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
@@ -111,13 +110,18 @@ def start_session(payload: SessionStartRequest, locale: str = Query("en")) -> Se
         phase0_completed=phase0_completed,
         portfolio_enrichment=[],
     )
-    save_session(session)
+    await store.create_session(db, session)
     return SessionStartResponse(session=session, first_question=first_question)
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
-def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en")) -> TurnResponse:
-    session = get_session_store(session_id)
+async def session_turn(
+    session_id: str,
+    payload: TurnRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+) -> TurnResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -153,16 +157,16 @@ def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en"
 
     if updated.phase0_completed:
         profile = updated.phase0_profile or {}
-        worker = get_worker(updated.worker_id)
+        worker = await store.get_worker(db, updated.worker_id)
         if worker:
             years = profile.get("yearsExp")
             if years is not None:
                 try:
-                    save_worker(worker.model_copy(update={"experience_years": int(years)}))
+                    await store.update_worker(db, worker.model_copy(update={"experience_years": int(years)}))
                 except (TypeError, ValueError):
                     pass
 
-    save_session(updated)
+    await store.update_session(db, updated)
     return TurnResponse(
         ai_question=result["ai_reply"],
         coach_note="",
@@ -173,8 +177,12 @@ def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en"
 
 
 @router.post("/sessions/{session_id}/self-ratings", response_model=SelfRatingsResponse)
-def set_self_ratings(session_id: str, payload: SelfRatingsRequest) -> SelfRatingsResponse:
-    session = get_session_store(session_id)
+async def set_self_ratings(
+    session_id: str,
+    payload: SelfRatingsRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SelfRatingsResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -192,13 +200,17 @@ def set_self_ratings(session_id: str, payload: SelfRatingsRequest) -> SelfRating
         cleaned[key] = max(1.0, min(5.0, round(v, 1)))
 
     updated = session.model_copy(update={"self_ratings": {**session.self_ratings, **cleaned}})
-    save_session(updated)
+    await store.update_session(db, updated)
     return SelfRatingsResponse(self_ratings=updated.self_ratings)
 
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
-def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> SnapshotResponse:
-    session = get_session_store(session_id)
+async def add_snapshot_feedback(
+    session_id: str,
+    payload: SnapshotRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SnapshotResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -211,7 +223,7 @@ def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> Snapshot
             "live_score": round((session.live_score * 0.85) + (snapshot.quality_score * 0.15), 2),
         }
     )
-    save_session(updated)
+    await store.update_session(db, updated)
 
     return SnapshotResponse(
         quality_score=snapshot.quality_score,
@@ -223,8 +235,12 @@ def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> Snapshot
 
 
 @router.post("/sessions/{session_id}/prior-work-media", response_model=PriorWorkMediaResponse)
-def add_prior_work_media(session_id: str, payload: PriorWorkMediaRequest) -> PriorWorkMediaResponse:
-    session = get_session_store(session_id)
+async def add_prior_work_media(
+    session_id: str,
+    payload: PriorWorkMediaRequest,
+    db: AsyncSession = Depends(get_db),
+) -> PriorWorkMediaResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -248,7 +264,7 @@ def add_prior_work_media(session_id: str, payload: PriorWorkMediaRequest) -> Pri
             "grounded_questions": grounded_questions,
         }
     )
-    save_session(updated)
+    await store.update_session(db, updated)
     return PriorWorkMediaResponse(
         prior_work_media=updated.prior_work_media,
         grounded_questions=updated.grounded_questions,
@@ -256,8 +272,12 @@ def add_prior_work_media(session_id: str, payload: PriorWorkMediaRequest) -> Pri
 
 
 @router.post("/sessions/{session_id}/portfolio-enrichment", response_model=PortfolioEnrichmentResponse)
-def add_portfolio_enrichment(session_id: str, payload: PortfolioEnrichmentRequest) -> PortfolioEnrichmentResponse:
-    session = get_session_store(session_id)
+async def add_portfolio_enrichment(
+    session_id: str,
+    payload: PortfolioEnrichmentRequest,
+    db: AsyncSession = Depends(get_db),
+) -> PortfolioEnrichmentResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -272,13 +292,17 @@ def add_portfolio_enrichment(session_id: str, payload: PortfolioEnrichmentReques
         for item in items
     ]
     updated = session.model_copy(update={"portfolio_enrichment": [*session.portfolio_enrichment, *added][:8]})
-    save_session(updated)
+    await store.update_session(db, updated)
     return PortfolioEnrichmentResponse(portfolio_enrichment=updated.portfolio_enrichment)
 
 
 @router.post("/sessions/{session_id}/integrity/event", response_model=IntegrityEventResponse)
-def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> IntegrityEventResponse:
-    session = get_session_store(session_id)
+async def add_integrity_event(
+    session_id: str,
+    payload: IntegrityEventRequest,
+    db: AsyncSession = Depends(get_db),
+) -> IntegrityEventResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -333,7 +357,7 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
             "integrity_events": [*session.integrity_events, next_event][-200:],
         }
     )
-    save_session(updated)
+    await store.update_session(db, updated)
     return IntegrityEventResponse(
         integrity_log=next_log,
         session_paused=next_log.session_paused,
@@ -342,31 +366,40 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
-def complete_session(session_id: str, locale: str = Query("en")) -> CompleteResponse:
-    session = get_session_store(session_id)
+async def complete_session(
+    session_id: str,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+) -> CompleteResponse:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status == "completed":
         return CompleteResponse(session=session)
 
     completed = finalize_session(session, locale)
-    save_session(completed)
+    await store.update_session(db, completed)
     return CompleteResponse(session=completed)
 
 
 @router.get("/session/{session_id}", response_model=Session)
-def get_session_route(session_id: str) -> Session:
-    session = get_session_store(session_id)
+async def get_session_route(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> Session:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
 
 @router.get("/sessions/live", response_model=list[Session])
-def live_sessions() -> list[Session]:
-    return list_live_sessions()
+async def live_sessions(db: AsyncSession = Depends(get_db)) -> list[Session]:
+    all_sessions = await store.get_all_sessions(db)
+    return [s for s in all_sessions if s.status == "live"]
 
 
 @router.get("/sessions/reports", response_model=list[Session])
-def completed_sessions() -> list[Session]:
-    return list_completed_sessions()
+async def completed_sessions(db: AsyncSession = Depends(get_db)) -> list[Session]:
+    all_sessions = await store.get_all_sessions(db)
+    return [s for s in all_sessions if s.status == "completed"]

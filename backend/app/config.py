@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "Shramik.ai API"
     env: str = "local"
     cors_origins: list[str] = ["http://localhost:3000"]
+    database_url: str = "postgresql+asyncpg://localhost/shramik"
     azure_openai_endpoint: str = ""
     azure_openai_deployment: str = "gpt-4.1"
     azure_openai_api_key: str = ""
