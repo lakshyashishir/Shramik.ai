@@ -5,7 +5,7 @@ export const ROLES = ["worker", "recruiter", "admin"];
 export const roleConfig = {
   worker:    { label: "Worker",    labelHi: "श्रमिक",      color: "#2563eb", nav: ["/screening", "/jobs"] },
   recruiter: { label: "Recruiter", labelHi: "भर्तीकर्ता", color: "#7c3aed", nav: ["/jobs"] },
-  admin:     { label: "Admin",     labelHi: "एडमिन",       color: "#0f766e", nav: ["/admin"] },
+  admin:     { label: "Admin",     labelHi: "एडमिन",       color: "#0f766e", nav: ["/admin", "/admin/review"] },
 };
 
 export const RoleContext = createContext(null);

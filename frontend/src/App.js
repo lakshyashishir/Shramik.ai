@@ -5,6 +5,7 @@ import { useState } from "react";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import WorkersBoardPage from "@/pages/WorkersBoardPage";
+import ReviewQueuePage from "@/pages/ReviewQueuePage";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/i18n/language";
 import { ROLES, RoleProvider, roleConfig, useRole } from "@/context/role";
@@ -15,7 +16,7 @@ export { useRole };
 const appCopy = {
   en: {
     subtitle: "Live skill assessment platform",
-    nav: { home: "Home", screening: "Live Screening", admin: "Operations", jobs: "Job Board" },
+    nav: { home: "Home", screening: "Live Screening", admin: "Operations", jobs: "Job Board", review: "Review Queue" },
     locale: { label: "Language", en: "English", hi: "\u0939\u093f\u0928\u094d\u0926\u0940" },
   },
   hi: {
@@ -25,16 +26,18 @@ const appCopy = {
       screening: "\u0932\u093e\u0907\u0935 \u0938\u094d\u0915\u094d\u0930\u0940\u0928\u093f\u0902\u0917",
       admin: "\u0911\u092a\u0930\u0947\u0936\u0928\u094d\u0938",
       jobs: "\u091c\u0949\u092c \u092c\u094b\u0930\u094d\u0921",
+      review: "Review Queue",
     },
     locale: { label: "\u092d\u093e\u0937\u093e", en: "English", hi: "\u0939\u093f\u0928\u094d\u0926\u0940" },
   },
 };
 
 const allNavLinks = (copy) => [
-  { path: "/",          label: copy.nav.home },
-  { path: "/screening", label: copy.nav.screening },
-  { path: "/admin",     label: copy.nav.admin },
-  { path: "/jobs",      label: copy.nav.jobs },
+  { path: "/",             label: copy.nav.home },
+  { path: "/screening",    label: copy.nav.screening },
+  { path: "/admin",        label: copy.nav.admin },
+  { path: "/admin/review", label: copy.nav.review },
+  { path: "/jobs",         label: copy.nav.jobs },
 ];
 
 /* ─── Role Toggle ─────────────────────────────────────────────── */
@@ -193,6 +196,7 @@ function AppShell() {
         <Route path="/screening" element={<ScreeningRoomPage />} />
         <Route path="/jobs" element={<WorkersBoardPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/review" element={<ReviewQueuePage />} />
       </Routes>
     </div>
   );

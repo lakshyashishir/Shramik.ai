@@ -278,7 +278,7 @@ function TailorCard({ tailor, onHire, copy, skillLabel }) {
           <p style={{ margin: 0, fontSize: 12, color: palette.muted }}>{tailor.completedJobs} {copy.jobsCompleted}</p>
           <p style={{ margin: "4px 0 0", fontSize: 12, color: palette.text, fontWeight: 700 }}>Rs. {tailor.hourlyRate}/hr</p>
         </div>
-        <button onClick={() => onHire(tailor)} disabled={!tailor.available} style={{ padding: "10px 18px", borderRadius: 999, border: "none", background: tailor.available ? palette.primary : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 700, cursor: tailor.available ? "pointer" : "not-allowed" }}>
+        <button onClick={() => onHire(tailor)} disabled={!tailor.available} style={{ padding: "12px 20px", minHeight: 48, minWidth: 48, borderRadius: 999, border: "none", background: tailor.available ? palette.primary : "#cbd5e1", color: "#fff", fontSize: 13, fontWeight: 700, cursor: tailor.available ? "pointer" : "not-allowed" }}>
           {tailor.available ? copy.hireNow : copy.unavailable}
         </button>
       </div>
@@ -308,8 +308,8 @@ function HireModal({ tailor, onClose, copy }) {
   if (!tailor) return null;
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18, 24, 39, 0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0 0 0 0" }}>
-      <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: "28px 28px 0 0", padding: "clamp(20px, 4vw, 30px) clamp(16px, 4vw, 26px)", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)", position: "relative", maxHeight: "90dvh", overflowY: "auto" }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18, 24, 39, 0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={(event) => event.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: "28px 28px 0 0", padding: "clamp(20px, 4vw, 30px) clamp(16px, 4vw, 26px)", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)", position: "relative", maxHeight: "92dvh", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
         <button onClick={onClose} style={{ position: "absolute", top: 16, right: 18, border: "none", background: "none", color: palette.muted, fontSize: 22, cursor: "pointer" }}>x</button>
         {!sent ? (
           <>
@@ -443,14 +443,14 @@ export default function TailorBoard() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {SKILLS.map((skill) => (
-                  <button key={skill} onClick={() => setActiveSkill(skill)} style={{ padding: "6px 14px", borderRadius: 999, border: `1px solid ${activeSkill === skill ? palette.accent : palette.border}`, background: activeSkill === skill ? palette.accent : palette.panel, color: activeSkill === skill ? "#fff" : palette.muted, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  <button key={skill} onClick={() => setActiveSkill(skill)} style={{ padding: "8px 14px", minHeight: 36, borderRadius: 999, border: `1px solid ${activeSkill === skill ? palette.accent : palette.border}`, background: activeSkill === skill ? palette.accent : palette.panel, color: activeSkill === skill ? "#fff" : palette.muted, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
                     {skillLabel(skill)}
                   </button>
                 ))}
               </div>
             </div>
             <p style={{ fontSize: 13, color: palette.muted, marginBottom: 18 }}>{copy.showing} {filtered.length} {copy.workers}{activeSkill !== "All" ? ` | ${skillLabel(activeSkill)}` : ""}{availableOnly ? ` | ${copy.available}` : ""}</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))", gap: 20 }}>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((tailor) => <TailorCard key={tailor.id} tailor={tailor} onHire={setSelectedTailor} copy={copy} skillLabel={skillLabel} />)}
               {filtered.length === 0 && (
                 <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "54px 20px", background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 24, color: palette.muted }}>
