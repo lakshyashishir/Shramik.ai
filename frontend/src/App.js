@@ -188,6 +188,7 @@ function AppShell() {
       {!hideNavigation && <MainNavigation />}
       {hideNavigation && (
         <div className="fixed right-4 top-4 z-40 flex items-center gap-2">
+          <RoleToggle compact />
           <LanguageToggle compact />
         </div>
       )}
