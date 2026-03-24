@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 from openai import AzureOpenAI
@@ -15,6 +16,27 @@ RUBRIC_WEIGHTS = {
     "fabric_material_knowledge": 0.12,
     "communication_confidence": 0.06,
 }
+CALL_RUBRIC_WEIGHTS = {
+    "machine_familiarity": 0.35,
+    "technical_knowledge": 0.33,
+    "fabric_material_knowledge": 0.20,
+    "communication_confidence": 0.12,
+}
+
+TRADE_KEYWORDS = {
+    "tailor": "Tailoring",
+    "silai": "Tailoring",
+    "stitching": "Tailoring",
+    "carpenter": "Carpentry",
+    "badhai": "Carpentry",
+    "electrician": "Electrical Work",
+    "bijli": "Electrical Work",
+    "plumber": "Plumbing",
+    "mason": "Masonry",
+    "rajmistri": "Masonry",
+    "welder": "Welding",
+    "painter": "Painting",
+}
 
 
 def _get_openai_client() -> AzureOpenAI:
@@ -25,13 +47,52 @@ def _get_openai_client() -> AzureOpenAI:
     )
 
 
-def choose_opening_question(worker_name: str, assignment: str) -> str:
+def _llm_available() -> bool:
+    return bool(settings.azure_openai_endpoint and settings.azure_openai_api_key and settings.azure_openai_deployment)
+
+
+def choose_opening_question(worker_name: str, assignment: str, interview_mode: str = "web") -> str:
+    if interview_mode == "call":
+        return (
+            f"Namaste {worker_name}. Yeh Shramik.ai ka phone interview hai. "
+            f"Aaj hum is kaam ke liye baat karenge: {assignment.lower()}. "
+            "Sabse pehle apne kaam ka tajurba aur roz ka process seedhe shabdon mein batayein."
+        )
     return (
         f"Namaste {worker_name}! Shramik.ai screening mein aapka swagat hai. "
         f"Aaj ka assignment hai: {assignment.lower()}. "
         "Pehle, aap apne baare mein thoda batayein — aap kahaan se hain, "
         "aur kitne saalon se silai-kadhai ka kaam kar rahe hain?"
     )
+
+
+def _fallback_turn(session: Session, worker_text: str) -> dict:
+    phase_order = ["intro", "technical", "task", "passport"]
+    current_index = phase_order.index(session.current_phase) if session.current_phase in phase_order else 0
+    next_phase = phase_order[min(current_index + 1, len(phase_order) - 1)]
+    lowered = worker_text.lower()
+    score_delta = 1.5 if len(worker_text.split()) >= 8 else -1.0
+    if any(term in lowered for term in ("machine", "needle", "tension", "dhaga", "motor", "wire", "pipe")):
+        score_delta += 1.0
+
+    follow_up = {
+        "intro": "Apne kaam mein aap sabse zyada kaunse tools ya machines use karte hain?",
+        "technical": "Agar kaam mein quality issue aaye, toh aap usse kaise identify aur fix karte hain?",
+        "task": "Ab step by step batayein ki yeh kaam shuru se khatam tak kaise karte hain.",
+        "passport": "Dhanyavaad. Aapka interview lagbhag complete hai. Koi ek cheez batayein jo aapko is kaam mein sabse achhi aati hai.",
+    }
+    rubric = {
+        "intro": "communication_confidence",
+        "technical": "technical_knowledge",
+        "task": "machine_familiarity" if session.interview_mode == "call" else "stitch_quality",
+        "passport": "fabric_material_knowledge",
+    }
+    return {
+        "ai_reply": follow_up.get(next_phase, follow_up["passport"]),
+        "rubric_tag": rubric.get(next_phase, "communication_confidence"),
+        "phase": next_phase,
+        "score_delta": max(-8.0, min(8.0, score_delta)),
+    }
 
 
 def run_agent_turn(session: Session, worker_text: str) -> dict:
@@ -45,19 +106,24 @@ def run_agent_turn(session: Session, worker_text: str) -> dict:
         messages.append({"role": role, "content": item.text})
     messages.append({"role": "user", "content": worker_text})
 
-    client = _get_openai_client()
-    resp = client.chat.completions.create(
-        model=settings.azure_openai_deployment,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.3,
-    )
+    if not _llm_available():
+        return _fallback_turn(session, worker_text)
 
-    raw = resp.choices[0].message.content
     try:
-        result = json.loads(raw)
-    except json.JSONDecodeError:
-        result = {}
+        client = _get_openai_client()
+        resp = client.chat.completions.create(
+            model=settings.azure_openai_deployment,
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0.3,
+        )
+        raw = resp.choices[0].message.content
+        try:
+            result = json.loads(raw)
+        except json.JSONDecodeError:
+            result = {}
+    except Exception:
+        return _fallback_turn(session, worker_text)
 
     try:
         score_delta = float(result.get("score_delta", 0))
@@ -75,7 +141,7 @@ def run_agent_turn(session: Session, worker_text: str) -> dict:
 
 def build_snapshot_feedback(note: str, current_score: float, image_data: str = "") -> SnapshotFeedback:
     """Analyze snapshot image with GPT-4o vision. Falls back to formula if no image."""
-    if image_data:
+    if image_data and _llm_available():
         try:
             client = _get_openai_client()
             resp = client.chat.completions.create(
@@ -164,21 +230,80 @@ def _evaluate_transcript(session: Session) -> dict:
         "Evaluate strictly. Do not inflate scores."
     )
 
-    client = _get_openai_client()
-    resp = client.chat.completions.create(
-        model=settings.azure_openai_deployment,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.2,
-    )
+    if not _llm_available():
+        return {}
 
     try:
+        client = _get_openai_client()
+        resp = client.chat.completions.create(
+            model=settings.azure_openai_deployment,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
         return json.loads(resp.choices[0].message.content)
-    except (json.JSONDecodeError, AttributeError):
+    except (json.JSONDecodeError, AttributeError, Exception):
         return {}
+
+
+def extract_worker_profile_from_text(transcript: str) -> dict:
+    text = transcript.strip()
+    if not text:
+        return {"name": "Unknown Worker", "specialization": "General Worker", "experience_years": 0}
+
+    if _llm_available():
+        system = (
+            "Extract worker onboarding details from Hindi or English speech. "
+            "Return only JSON with keys: name, specialization, experience_years."
+        )
+        try:
+            client = _get_openai_client()
+            resp = client.chat.completions.create(
+                model=settings.azure_openai_deployment,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": text},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+            )
+            parsed = json.loads(resp.choices[0].message.content)
+            return {
+                "name": str(parsed.get("name") or "Unknown Worker").strip()[:80],
+                "specialization": str(parsed.get("specialization") or "General Worker").strip()[:120],
+                "experience_years": max(0, min(50, int(parsed.get("experience_years") or 0))),
+            }
+        except Exception:
+            pass
+
+    lowered = text.lower()
+    experience_match = re.search(r"(\d{1,2})\s*(?:saal|year)", lowered)
+    experience_years = int(experience_match.group(1)) if experience_match else 0
+
+    name = "Unknown Worker"
+    for pattern in (
+        r"(?:mera naam|my name is|i am)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+){0,2})",
+        r"(?:main|mai)\s+([a-zA-Z]+(?:\s+[a-zA-Z]+){0,2})",
+    ):
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            name = match.group(1).strip().title()
+            break
+
+    specialization = "General Worker"
+    for keyword, label in TRADE_KEYWORDS.items():
+        if keyword in lowered:
+            specialization = label
+            break
+
+    return {
+        "name": name[:80],
+        "specialization": specialization[:120],
+        "experience_years": experience_years,
+    }
 
 
 def finalize_session(session: Session) -> Session:
@@ -197,14 +322,17 @@ def finalize_session(session: Session) -> Session:
             rubric_raw[key] = fallback_score
 
     # Snapshot bonus applied to stitch_quality
-    if session.snapshot_feedback:
+    if session.snapshot_feedback and session.interview_mode != "call":
         bonus = session.snapshot_feedback[-1].quality_score * 0.1
         rubric_raw["stitch_quality"] = min(100.0, round(rubric_raw["stitch_quality"] + bonus, 2))
+    if session.interview_mode == "call":
+        rubric_raw["stitch_quality"] = 0.0
 
     integrity_compliance = round(session.integrity_log.integrity_score * 100, 2)
+    weights = CALL_RUBRIC_WEIGHTS if session.interview_mode == "call" else RUBRIC_WEIGHTS
 
     overall = round(
-        sum(rubric_raw[k] * w for k, w in RUBRIC_WEIGHTS.items()),
+        sum(rubric_raw.get(k, 0.0) * w for k, w in weights.items()),
         2,
     )
     # Blend with integrity

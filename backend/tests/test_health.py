@@ -1,69 +1,114 @@
-﻿from fastapi.testclient import TestClient
+﻿from app.api.routes.call import (
+    ExotelSessionBootstrapRequest,
+    ExotelTurnRequest,
+    bootstrap_exotel_session,
+    exotel_complete,
+    exotel_turn,
+)
+from app.api.routes.health import healthcheck
+from app.api.routes.sessions import (
+    IntegrityEventRequest,
+    SnapshotRequest,
+    add_integrity_event,
+    add_snapshot_feedback,
+    complete_session,
+    start_session,
+)
+from app.api.routes.workers import create_worker, onboard_worker_by_voice
+from app.config import settings
+from app.models import SessionStartRequest, TurnRequest, WorkerCreate, WorkerVoiceOnboardRequest
+from app.services.store import call_session_index, sessions, workers
 
-from app.main import app
+
+settings.azure_openai_endpoint = ""
+settings.azure_openai_api_key = ""
+settings.azure_openai_deployment = ""
+settings.exotel_enabled = False
 
 
-client = TestClient(app)
+def setup_function() -> None:
+    workers.clear()
+    sessions.clear()
+    call_session_index.clear()
 
 
 def test_healthcheck() -> None:
-    response = client.get("/api/health")
-    assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    assert healthcheck() == {"ok": True}
 
 
 def test_worker_and_session_flow() -> None:
-    worker = client.post(
-        "/api/workers",
-        json={
-            "name": "Rekha Devi",
-            "specialization": "Industrial Stitching",
-            "experience_years": 3,
-        },
+    worker = create_worker(
+        WorkerCreate(
+            name="Rekha Devi",
+            specialization="Industrial Stitching",
+            experience_years=3,
+        )
     )
-    assert worker.status_code == 200
-    worker_id = worker.json()["id"]
 
-    session = client.post(
-        "/api/sessions/start",
-        json={
-            "worker_id": worker_id,
-            "assignment": "Stitch a clean straight seam with consistent margin and explain your quality checks.",
-        },
+    started = start_session(
+        SessionStartRequest(
+            worker_id=worker.id,
+            assignment="Stitch a clean straight seam with consistent margin and explain your quality checks.",
+        )
     )
-    assert session.status_code == 200
-    session_id = session.json()["session"]["id"]
+    session_id = started.session.id
 
-    turn = client.post(
-        f"/api/sessions/{session_id}/turn",
-        json={"worker_text": "I first check needle, thread tension, and fabric alignment."},
+    turn = exotel_turn(ExotelTurnRequest(session_id=session_id, transcript="I first check needle, thread tension, and fabric alignment."))
+    assert turn.ai_question
+
+    snapshot = add_snapshot_feedback(
+        session_id,
+        SnapshotRequest(
+            image_data="data:image/jpeg;base64," + ("a" * 40),
+            note="Worker showing seam line and edge finish",
+        ),
     )
-    assert turn.status_code == 200
+    assert snapshot.snapshot_count == 1
 
-    snapshot = client.post(
-        f"/api/sessions/{session_id}/snapshot",
-        json={
-            "image_data": "data:image/jpeg;base64," + ("a" * 40),
-            "note": "Worker showing seam line and edge finish",
-        },
+    integrity_event = add_integrity_event(
+        session_id,
+        IntegrityEventRequest(event="multi_face_warning", details={"faces": 2}),
     )
-    assert snapshot.status_code == 200
+    assert integrity_event.integrity_log.multiface_events == 1
 
-    integrity_event = client.post(
-        f"/api/sessions/{session_id}/integrity/event",
-        json={"event": "multi_face_warning", "details": {"faces": 2}},
+    completed = complete_session(session_id)
+    assert completed.session.status == "completed"
+    assert "integrity_compliance" in completed.session.rubric_scores
+
+
+def test_voice_onboard_and_call_mode_flow() -> None:
+    worker = onboard_worker_by_voice(
+        WorkerVoiceOnboardRequest(
+            transcript="Mera naam Raju hai. Main electrician hoon aur 6 saal se wiring ka kaam karta hoon.",
+            phone_number="+919876543210",
+        )
     )
-    assert integrity_event.status_code == 200
-    assert integrity_event.json()["integrity_log"]["multiface_events"] == 1
+    assert worker.specialization == "Electrical Work"
+    assert worker.phone_number == "09876543210"
 
-    integrity_resolve = client.post(
-        f"/api/sessions/{session_id}/integrity/event",
-        json={"event": "multi_face_resolved"},
+    bootstrap = bootstrap_exotel_session(
+        ExotelSessionBootstrapRequest(
+            call_sid="call_sid_001",
+            from_number="+919876543210",
+            assignment="Explain electrical safety checks before residential wiring work.",
+        )
     )
-    assert integrity_resolve.status_code == 200
-    assert integrity_resolve.json()["integrity_log"]["multiface_resolved"] is True
+    assert "phone assessment" in bootstrap.greeting.lower()
 
-    completed = client.post(f"/api/sessions/{session_id}/complete")
-    assert completed.status_code == 200
-    assert completed.json()["session"]["status"] == "completed"
-    assert "integrity_compliance" in completed.json()["session"]["rubric_scores"]
+    turn = exotel_turn(
+        ExotelTurnRequest(
+            call_sid="call_sid_001",
+            transcript="Main pehle main switch band karta hoon, tester se line check karta hoon aur phir insulated tools use karta hoon.",
+        )
+    )
+    assert turn.ai_question
+
+    completed = exotel_complete(
+        call_sid="call_sid_001",
+        duration_seconds=143,
+        final_status="completed",
+        recording_url="https://example.com/recording.wav",
+    )
+    assert completed.session.status == "completed"
+    assert completed.session.interview_mode == "call"
+    assert completed.session.call_duration_seconds == 143

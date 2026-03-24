@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.agents.screening_logic import build_snapshot_feedback, choose_opening_question, finalize_session, run_agent_turn
+from app.agents.screening_logic import build_snapshot_feedback
 from app.models import (
     CompleteResponse,
     IntegrityEvent,
@@ -12,12 +12,11 @@ from app.models import (
     SessionStartResponse,
     SnapshotRequest,
     SnapshotResponse,
-    TranscriptItem,
     TurnRequest,
     TurnResponse,
-    new_id,
     utc_now_iso,
 )
+from app.services.session_runtime import append_turn, complete_session as complete_runtime_session, create_session, require_session
 from app.services.store import sessions, workers
 
 router = APIRouter(tags=["sessions"])
@@ -39,70 +38,24 @@ def start_session(payload: SessionStartRequest) -> SessionStartResponse:
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    first_question = choose_opening_question(worker.name, payload.assignment)
-    session = Session(
-        id=new_id("session"),
-        worker_id=worker.id,
-        worker_name=worker.name,
-        assignment=payload.assignment.strip(),
-        status="live",
-        started_at=utc_now_iso(),
-        live_score=50.0,
-        recommendation="pending",
-        summary="Session in progress",
-        transcript=[
-            TranscriptItem(speaker="ai", text=first_question, timestamp=utc_now_iso())
-        ],
-        snapshot_feedback=[],
-        rubric_scores={},
+    session, first_question = create_session(
+        worker,
+        payload.assignment,
+        interview_mode=payload.interview_mode,
+        call_phone_number=payload.call_phone_number,
     )
-    sessions[session.id] = session
     return SessionStartResponse(session=session, first_question=first_question)
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
 def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
-    session = sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.status != "live":
-        raise HTTPException(status_code=400, detail="Session already completed")
-
-    result = run_agent_turn(session, payload.worker_text)
-    new_score = round(
-        max(0.0, min(100.0, session.live_score + result["score_delta"])),
-        2,
+    _, response = append_turn(
+        session_id,
+        payload.worker_text,
+        rubric_tag=payload.rubric_tag,
+        acoustic_confidence=payload.acoustic_confidence,
     )
-    updated = session.model_copy(
-        update={
-            "transcript": [
-                *session.transcript,
-                TranscriptItem(
-                    speaker="worker",
-                    text=payload.worker_text.strip(),
-                    timestamp=utc_now_iso(),
-                    rubric_tag=payload.rubric_tag,
-                    acoustic_confidence=payload.acoustic_confidence,
-                ),
-                TranscriptItem(
-                    speaker="ai",
-                    text=result["ai_reply"],
-                    timestamp=utc_now_iso(),
-                    rubric_tag=result["rubric_tag"],
-                ),
-            ],
-            "current_phase": result["phase"],
-            "live_score": new_score,
-        }
-    )
-    sessions[session_id] = updated
-    return TurnResponse(
-        ai_question=result["ai_reply"],
-        coach_note="",
-        live_score=updated.live_score,
-        rubric_tag=result["rubric_tag"],
-        phase=result["phase"],
-    )
+    return response
 
 
 @router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
@@ -198,23 +151,13 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
 def complete_session(session_id: str) -> CompleteResponse:
-    session = sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if session.status == "completed":
-        return CompleteResponse(session=session)
-
-    completed = finalize_session(session)
-    sessions[session_id] = completed
+    completed = complete_runtime_session(session_id)
     return CompleteResponse(session=completed)
 
 
 @router.get("/session/{session_id}", response_model=Session)
 def get_session(session_id: str) -> Session:
-    session = sessions.get(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session
+    return require_session(session_id)
 
 
 @router.get("/sessions/live", response_model=list[Session])

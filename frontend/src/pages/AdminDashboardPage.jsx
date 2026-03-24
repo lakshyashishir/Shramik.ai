@@ -27,6 +27,7 @@ const DUMMY_REPORTS = [
       face_absent_events: 0,
       gaze_deviation_events: 1,
     },
+    interview_mode: "web",
     transcript: [
       { speaker: "ai",     text: "नमस्ते! आप किस मशीन पर काम करते हैं?", timestamp: "" },
       { speaker: "worker", text: "मैं जुकी और उषा दोनों मशीन चला सकता हूँ। 5 साल का अनुभव है।", timestamp: "" },
@@ -56,6 +57,7 @@ const DUMMY_REPORTS = [
       face_absent_events: 1,
       gaze_deviation_events: 2,
     },
+    interview_mode: "call",
     transcript: [
       { speaker: "ai",     text: "Hello Sunita! Tell me about the machines you've worked on.", timestamp: "" },
       { speaker: "worker", text: "I have worked on flatbed machine and overlock for 2 years.", timestamp: "" },
@@ -85,6 +87,7 @@ const DUMMY_REPORTS = [
       face_absent_events: 3,
       gaze_deviation_events: 5,
     },
+    interview_mode: "whatsapp",
     transcript: [
       { speaker: "ai",     text: "Mohan ji, kurte mein kya defects dhundhte hain aap?", timestamp: "" },
       { speaker: "worker", text: "Dhaga toot jaye toh defect hota hai.", timestamp: "" },
@@ -102,6 +105,7 @@ const DUMMY_LIVE = [
     worker_name: "Priya Sharma",
     assignment: "Sew sleeve placket on a cotton shirt",
     live_score: 74,
+    interview_mode: "call",
     transcript: [
       { speaker: "ai",     text: "Priya ji, placket lagane ke liye aap kaunsa stitch use karti hain?", timestamp: "" },
       { speaker: "worker", text: "Main lockstitch use karti hoon aur corners pe backtrack karti hoon.", timestamp: "" },
@@ -130,6 +134,13 @@ const RECOMMENDATION_STYLE = {
   hold:    "bg-yellow-100 text-yellow-700 border-yellow-300",
   reject:  "bg-red-100 text-red-700 border-red-300",
   pending: "bg-slate-100 text-slate-600 border-slate-300",
+};
+
+const CHANNEL_LABEL = {
+  web: "Web",
+  call: "Call",
+  whatsapp: "WhatsApp",
+  offline: "Offline",
 };
 
 // ── Copy map ─────────────────────────────────────────────────────────────────
@@ -260,6 +271,11 @@ function RubricBar({ label, labelHi, score, weight, locale, weightLabel }) {
   );
 }
 
+function ChannelBadge({ mode }) {
+  const label = CHANNEL_LABEL[mode] || CHANNEL_LABEL.web;
+  return <Badge variant="outline" className="border-border/60 text-foreground">{label}</Badge>;
+}
+
 function IntegrityBadge({ log, copy }) {
   if (!log) return null;
   const flag = log.overall_flag || "clear";
@@ -367,7 +383,10 @@ function ReportCard({ report, override, onOverride, locale, copy }) {
       >
         <div className="min-w-0">
           <p className="truncate font-semibold text-primary">{report.worker_name}</p>
-          <p className="font-mono text-xs text-accent">{copy.score}: {Math.round(report.live_score ?? 0)}%</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="font-mono text-xs text-accent">{copy.score}: {Math.round(report.live_score ?? 0)}%</p>
+            <ChannelBadge mode={report.interview_mode} />
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge className={`border text-[11px] ${recStyle}`}>
@@ -539,9 +558,12 @@ export default function AdminDashboardPage() {
                   <article key={s.id} className="rounded-xl border border-border/60 bg-muted/20 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-semibold text-primary">{s.worker_name}</p>
-                      <Badge className="bg-accent/10 text-accent">
-                        {Math.round(s.live_score ?? 0)}% {copy.live.score}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <ChannelBadge mode={s.interview_mode} />
+                        <Badge className="bg-accent/10 text-accent">
+                          {Math.round(s.live_score ?? 0)}% {copy.live.score}
+                        </Badge>
+                      </div>
                     </div>
                     <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1">
                       {copy.live.assignment}: {s.assignment}

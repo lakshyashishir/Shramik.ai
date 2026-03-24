@@ -9,6 +9,7 @@ class WorkerCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     specialization: str = Field(min_length=2, max_length=120)
     experience_years: int = Field(ge=0, le=50)
+    phone_number: Optional[str] = Field(default=None, max_length=20)
 
 
 class Worker(BaseModel):
@@ -18,6 +19,7 @@ class Worker(BaseModel):
     name: str
     specialization: str
     experience_years: int
+    phone_number: Optional[str] = None
     created_at: str
 
 
@@ -94,11 +96,25 @@ class Session(BaseModel):
     integrity_events: List[IntegrityEvent] = Field(default_factory=list)
     current_phase: str = "intro"
     self_ratings: Dict[str, float] = Field(default_factory=dict)
+    interview_mode: Literal["web", "call", "whatsapp", "offline"] = "web"
+    call_provider: Optional[Literal["exotel"]] = None
+    call_phone_number: Optional[str] = None
+    call_duration_seconds: Optional[int] = None
+    external_call_id: Optional[str] = None
+    external_call_status: Optional[str] = None
+    latest_call_recording_url: Optional[str] = None
 
 
 class SessionStartRequest(BaseModel):
     worker_id: str
     assignment: str = Field(min_length=8, max_length=400)
+    interview_mode: Literal["web", "call", "whatsapp", "offline"] = "web"
+    call_phone_number: Optional[str] = Field(default=None, max_length=20)
+
+
+class WorkerVoiceOnboardRequest(BaseModel):
+    transcript: str = Field(min_length=3, max_length=600)
+    phone_number: Optional[str] = Field(default=None, max_length=20)
 
 
 class SessionStartResponse(BaseModel):
