@@ -1,39 +1,22 @@
 import "@/App.css";
-import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
-import { createContext, useContext, useState } from "react";
-import LandingPage from "@/pages/LandingPage";
+import { useState } from "react";
 import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import WorkersBoardPage from "@/pages/WorkersBoardPage";
+import ReviewQueuePage from "@/pages/ReviewQueuePage";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/i18n/language";
+import { ROLES, RoleProvider, roleConfig, useRole } from "@/context/role";
 
-/* ─── Role context ───────────────────────────────────────────── */
-const ROLES = ["worker", "recruiter", "admin"];
-
-const roleConfig = {
-  worker:    { label: "Worker",    labelHi: "श्रमिक",    color: "#2563eb", nav: ["/screening", "/jobs"] },
-  recruiter: { label: "Recruiter", labelHi: "भर्तीकर्ता", color: "#7c3aed", nav: ["/jobs"] },
-  admin:     { label: "Admin",     labelHi: "एडमिन",    color: "#0f766e", nav: ["/admin"] },
-};
-
-const RoleContext = createContext(null);
-
-function RoleProvider({ children }) {
-  const [role, setRole] = useState("recruiter");
-  return <RoleContext.Provider value={{ role, setRole }}>{children}</RoleContext.Provider>;
-}
-
-export function useRole() {
-  return useContext(RoleContext);
-}
+export { useRole };
 
 /* ─── Copy ───────────────────────────────────────────────────── */
 const appCopy = {
   en: {
     subtitle: "Live skill assessment platform",
-    nav: { home: "Home", screening: "Live Screening", admin: "Operations", jobs: "Job Board" },
+    nav: { home: "Home", screening: "Live Screening", admin: "Operations", jobs: "Job Board", review: "Review Queue" },
     locale: { label: "Language", en: "English", hi: "\u0939\u093f\u0928\u094d\u0926\u0940" },
   },
   hi: {
@@ -43,16 +26,18 @@ const appCopy = {
       screening: "\u0932\u093e\u0907\u0935 \u0938\u094d\u0915\u094d\u0930\u0940\u0928\u093f\u0902\u0917",
       admin: "\u0911\u092a\u0930\u0947\u0936\u0928\u094d\u0938",
       jobs: "\u091c\u0949\u092c \u092c\u094b\u0930\u094d\u0921",
+      review: "Review Queue",
     },
     locale: { label: "\u092d\u093e\u0937\u093e", en: "English", hi: "\u0939\u093f\u0928\u094d\u0926\u0940" },
   },
 };
 
 const allNavLinks = (copy) => [
-  { path: "/",          label: copy.nav.home },
-  { path: "/screening", label: copy.nav.screening },
-  { path: "/admin",     label: copy.nav.admin },
-  { path: "/jobs",      label: copy.nav.jobs },
+  { path: "/",             label: copy.nav.home },
+  { path: "/screening",    label: copy.nav.screening },
+  { path: "/admin",        label: copy.nav.admin },
+  { path: "/admin/review", label: copy.nav.review },
+  { path: "/jobs",         label: copy.nav.jobs },
 ];
 
 /* ─── Role Toggle ─────────────────────────────────────────────── */
@@ -102,7 +87,7 @@ function RoleToggle({ compact = false }) {
 }
 
 /* ─── Language Toggle ─────────────────────────────────────────── */
-function LanguageToggle({ compact = false }) {
+export function LanguageToggle({ compact = false }) {
   const { locale, setLocale, supportedLocales } = useLanguage();
   const copy = appCopy[locale] ?? appCopy.en;
 
@@ -201,16 +186,12 @@ function AppShell() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {!hideNavigation && <MainNavigation />}
-      {hideNavigation && (
-        <div className="fixed right-4 top-4 z-40 flex items-center gap-2">
-          <LanguageToggle compact />
-        </div>
-      )}
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={<Navigate to="/screening" replace />} />
         <Route path="/screening" element={<ScreeningRoomPage />} />
         <Route path="/jobs" element={<WorkersBoardPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/admin/review" element={<ReviewQueuePage />} />
       </Routes>
     </div>
   );

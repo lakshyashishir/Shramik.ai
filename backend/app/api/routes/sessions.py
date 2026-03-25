@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.agents.screening_logic import build_snapshot_feedback
 from app.models import (
@@ -33,7 +33,7 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
 
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
-def start_session(payload: SessionStartRequest) -> SessionStartResponse:
+def start_session(payload: SessionStartRequest, locale: str = Query("en")) -> SessionStartResponse:
     worker = workers.get(payload.worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
@@ -42,16 +42,18 @@ def start_session(payload: SessionStartRequest) -> SessionStartResponse:
         worker,
         payload.assignment,
         interview_mode=payload.interview_mode,
+        locale=locale,
         call_phone_number=payload.call_phone_number,
     )
     return SessionStartResponse(session=session, first_question=first_question)
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
-def session_turn(session_id: str, payload: TurnRequest) -> TurnResponse:
+def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en")) -> TurnResponse:
     _, response = append_turn(
         session_id,
         payload.worker_text,
+        locale=locale,
         rubric_tag=payload.rubric_tag,
         acoustic_confidence=payload.acoustic_confidence,
     )
@@ -150,8 +152,8 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
-def complete_session(session_id: str) -> CompleteResponse:
-    completed = complete_runtime_session(session_id)
+def complete_session(session_id: str, locale: str = Query("en")) -> CompleteResponse:
+    completed = complete_runtime_session(session_id, locale=locale)
     return CompleteResponse(session=completed)
 
 

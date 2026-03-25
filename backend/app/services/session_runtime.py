@@ -17,12 +17,18 @@ def create_session(
     assignment: str,
     *,
     interview_mode: str = "web",
+    locale: str = "en",
     call_provider: str | None = None,
     call_phone_number: str | None = None,
     external_call_id: str | None = None,
     external_call_status: str | None = None,
 ) -> tuple[Session, str]:
-    first_question = choose_opening_question(worker.name, assignment, interview_mode=interview_mode)
+    first_question = choose_opening_question(
+        worker.name,
+        assignment,
+        interview_mode=interview_mode,
+        locale=locale,
+    )
     session = Session(
         id=new_id("session"),
         worker_id=worker.id,
@@ -57,6 +63,7 @@ def append_turn(
     session_id: str,
     worker_text: str,
     *,
+    locale: str = "en",
     rubric_tag: str | None = None,
     acoustic_confidence: float | None = None,
 ) -> tuple[Session, TurnResponse]:
@@ -64,7 +71,7 @@ def append_turn(
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    result = run_agent_turn(session, worker_text)
+    result = run_agent_turn(session, worker_text, locale)
     new_score = round(max(0.0, min(100.0, session.live_score + result["score_delta"])), 2)
     updated = session.model_copy(
         update={
@@ -98,11 +105,11 @@ def append_turn(
     )
 
 
-def complete_session(session_id: str) -> Session:
+def complete_session(session_id: str, *, locale: str = "en") -> Session:
     session = require_session(session_id)
     if session.status == "completed":
         return session
-    completed = finalize_session(session)
+    completed = finalize_session(session, locale)
     sessions[session_id] = completed
     return completed
 

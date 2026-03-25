@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
 from app.agents.screening_logic import extract_worker_profile_from_text
 from app.integrations.exotel.client import normalize_indian_phone_number

@@ -91,10 +91,10 @@ export default function LandingPage() {
   const copy = landingCopy[locale] ?? landingCopy.en;
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-16 px-6 py-10 md:px-10 md:py-14">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 py-8 md:gap-16 md:px-10 md:py-14">
       <section className="grid grid-cols-1 gap-6 md:grid-cols-12" data-testid="landing-hero-section">
         <article className="relative overflow-hidden rounded-[2rem] md:col-span-8" data-testid="landing-hero-card">
-          <img src={heroImage} alt={copy.heroAlt} className="h-[520px] w-full object-cover" data-testid="landing-hero-image" />
+          <img src={heroImage} alt={copy.heroAlt} className="h-[55vw] min-h-[260px] max-h-[520px] w-full object-cover" data-testid="landing-hero-image" />
           <div className="hero-overlay absolute inset-0 p-6 md:p-10">
             <div className="flex h-full flex-col justify-end gap-5">
               <p className="text-sm uppercase tracking-[0.2em] text-white/85" data-testid="hero-kicker-text">
@@ -106,14 +106,14 @@ export default function LandingPage() {
               <p className="max-w-2xl text-sm text-white/90 md:text-base" data-testid="hero-description-text">
                 {copy.description}
               </p>
-              <div className="flex flex-wrap items-center gap-4" data-testid="hero-cta-group">
-                <Button asChild className="h-12 rounded-full px-8 text-base transition-transform duration-300 hover:scale-105" data-testid="hero-start-screening-button">
+              <div className="flex flex-wrap items-center gap-3 md:gap-4" data-testid="hero-cta-group">
+                <Button asChild className="h-12 min-w-[160px] rounded-full px-8 text-base transition-transform duration-300 hover:scale-105 active:scale-95" data-testid="hero-start-screening-button">
                   <Link to="/screening">
                     {copy.primaryCta}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild variant="secondary" className="h-12 rounded-full bg-secondary/15 px-7 text-base text-white hover:bg-secondary/30" data-testid="hero-open-admin-button">
+                <Button asChild variant="secondary" className="h-12 rounded-full bg-secondary/15 px-7 text-base text-white hover:bg-secondary/30 active:scale-95" data-testid="hero-open-admin-button">
                   <Link to="/admin">{copy.secondaryCta}</Link>
                 </Button>
               </div>
