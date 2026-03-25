@@ -5,41 +5,19 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from app.config import settings
+from app.services.sarvam_speech import TTS_URL, sarvam_headers, transcribe_audio_bytes
 
 router = APIRouter(tags=["speech"])
 
-_STT_URL = "https://api.sarvam.ai/speech-to-text"
-_TTS_URL = "https://api.sarvam.ai/text-to-speech"
-
-
-def _sarvam_headers() -> dict:
-    if not settings.sarvam_api_key:
-        raise HTTPException(status_code=503, detail="Speech service not configured")
-    return {"api-subscription-key": settings.sarvam_api_key}
-
-
 @router.post("/speech/stt")
 async def speech_to_text(file: UploadFile = File(...)):
-    headers = _sarvam_headers()
     audio_bytes = await file.read()
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            _STT_URL,
-            headers=headers,
-            files={"file": (file.filename or "audio.webm", audio_bytes, file.content_type or "audio/webm")},
-            data={"model": "saaras:v3", "language_code": "hi-IN"},
-        )
-
-    if resp.status_code != 200:
-        raise HTTPException(status_code=502, detail=f"STT error: {resp.text[:200]}")
-
-    data = resp.json()
-    return {
-        "transcript": data.get("transcript", ""),
-        "language_code": data.get("language_code", "hi-IN"),
-    }
+    return await transcribe_audio_bytes(
+        audio_bytes,
+        filename=file.filename or "audio.webm",
+        content_type=file.content_type or "audio/webm",
+        language_code="hi-IN",
+    )
 
 
 class TtsRequest(BaseModel):
@@ -49,11 +27,11 @@ class TtsRequest(BaseModel):
 
 @router.post("/speech/tts")
 async def text_to_speech(payload: TtsRequest):
-    headers = _sarvam_headers()
+    headers = sarvam_headers()
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.post(
-            _TTS_URL,
+            TTS_URL,
             headers={**headers, "Content-Type": "application/json"},
             json={
                 "inputs": [payload.text],

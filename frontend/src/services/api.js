@@ -12,6 +12,8 @@ export const screeningApi = {
   health: async () => (await client.get("/health")).data,
   createWorker: async (payload) => (await client.post("/workers", payload)).data,
   listWorkers: async () => (await client.get("/workers")).data,
+  startTwilioCall: async (payload) =>
+    (await client.post("/calls/twilio/start", payload)).data,
   startSession: async (payload, locale = "en") =>
     (await client.post(`/sessions/start?locale=${locale}`, payload)).data,
   sendTurn: async (sessionId, payload, locale = "en") =>

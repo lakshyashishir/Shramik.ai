@@ -17,15 +17,11 @@ class Settings(BaseSettings):
     azure_storage_connection_string: str = ""
     sarvam_api_key: str = ""
     public_base_url: str = "http://localhost:8000"
-    exotel_enabled: bool = False
-    exotel_account_sid: str = ""
-    exotel_api_key: str = ""
-    exotel_api_token: str = ""
-    exotel_api_host: str = "api.in.exotel.com"
-    exotel_caller_id: str = ""
-    exotel_app_id: str = ""
-    exotel_app_flow_url: str = ""
-    exotel_default_assignment: str = (
+    twilio_enabled: bool = False
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+    twilio_default_assignment: str = (
         "Worker explains their trade experience, tools, material handling, "
         "quality checks, and step-by-step work process over a phone interview."
     )

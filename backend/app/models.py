@@ -97,7 +97,7 @@ class Session(BaseModel):
     current_phase: str = "intro"
     self_ratings: Dict[str, float] = Field(default_factory=dict)
     interview_mode: Literal["web", "call", "whatsapp", "offline"] = "web"
-    call_provider: Optional[Literal["exotel"]] = None
+    call_provider: Optional[Literal["twilio"]] = None
     call_phone_number: Optional[str] = None
     call_duration_seconds: Optional[int] = None
     external_call_id: Optional[str] = None

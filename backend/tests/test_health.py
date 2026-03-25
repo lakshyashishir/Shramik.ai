@@ -1,10 +1,4 @@
-﻿from app.api.routes.call import (
-    ExotelSessionBootstrapRequest,
-    ExotelTurnRequest,
-    bootstrap_exotel_session,
-    exotel_complete,
-    exotel_turn,
-)
+from app.api.routes.call import _build_greeting_text
 from app.api.routes.health import healthcheck
 from app.api.routes.sessions import (
     IntegrityEventRequest,
@@ -12,18 +6,23 @@ from app.api.routes.sessions import (
     add_integrity_event,
     add_snapshot_feedback,
     complete_session,
+    session_turn,
     start_session,
 )
 from app.api.routes.workers import create_worker, onboard_worker_by_voice
 from app.config import settings
 from app.models import SessionStartRequest, TurnRequest, WorkerCreate, WorkerVoiceOnboardRequest
+from app.services.session_runtime import create_session
 from app.services.store import call_session_index, sessions, workers
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 
 settings.azure_openai_endpoint = ""
 settings.azure_openai_api_key = ""
 settings.azure_openai_deployment = ""
-settings.exotel_enabled = False
+settings.twilio_enabled = False
 
 
 def setup_function() -> None:
@@ -53,7 +52,7 @@ def test_worker_and_session_flow() -> None:
     )
     session_id = started.session.id
 
-    turn = exotel_turn(ExotelTurnRequest(session_id=session_id, transcript="I first check needle, thread tension, and fabric alignment."))
+    turn = session_turn(session_id, TurnRequest(worker_text="I first check needle, thread tension, and fabric alignment."))
     assert turn.ai_question
 
     snapshot = add_snapshot_feedback(
@@ -76,7 +75,7 @@ def test_worker_and_session_flow() -> None:
     assert "integrity_compliance" in completed.session.rubric_scores
 
 
-def test_voice_onboard_and_call_mode_flow() -> None:
+def test_voice_onboard_and_call_mode_setup() -> None:
     worker = onboard_worker_by_voice(
         WorkerVoiceOnboardRequest(
             transcript="Mera naam Raju hai. Main electrician hoon aur 6 saal se wiring ka kaam karta hoon.",
@@ -84,31 +83,38 @@ def test_voice_onboard_and_call_mode_flow() -> None:
         )
     )
     assert worker.specialization == "Electrical Work"
-    assert worker.phone_number == "09876543210"
+    assert worker.phone_number == "+919876543210"
 
-    bootstrap = bootstrap_exotel_session(
-        ExotelSessionBootstrapRequest(
-            call_sid="call_sid_001",
-            from_number="+919876543210",
-            assignment="Explain electrical safety checks before residential wiring work.",
-        )
+    session, _ = create_session(
+        worker,
+        "Explain electrical safety checks before residential wiring work.",
+        interview_mode="call",
+        locale="hi",
+        call_provider="twilio",
+        call_phone_number=worker.phone_number,
     )
-    assert "phone assessment" in bootstrap.greeting.lower()
+    greeting = _build_greeting_text(session)
+    assert "shramik.ai phone assessment" in greeting.lower()
+    assert session.call_provider == "twilio"
 
-    turn = exotel_turn(
-        ExotelTurnRequest(
-            call_sid="call_sid_001",
-            transcript="Main pehle main switch band karta hoon, tester se line check karta hoon aur phir insulated tools use karta hoon.",
-        )
-    )
-    assert turn.ai_question
 
-    completed = exotel_complete(
-        call_sid="call_sid_001",
-        duration_seconds=143,
-        final_status="completed",
-        recording_url="https://example.com/recording.wav",
+def test_twilio_inbound_webhook_creates_session() -> None:
+    client = TestClient(app)
+
+    call_sid = "CA1234567890abcdef1234567890"
+    from_number = "+919876543210"
+
+    resp = client.post(
+        "/api/calls/twilio/incoming",
+        data={
+            "From": from_number,
+            "CallSid": call_sid,
+        },
     )
-    assert completed.session.status == "completed"
-    assert completed.session.interview_mode == "call"
-    assert completed.session.call_duration_seconds == 143
+    assert resp.status_code == 200
+    assert "application/xml" in (resp.headers.get("content-type") or "").lower()
+    assert "phone assessment" in resp.text.lower()
+
+    assert call_session_index.get(call_sid) is not None
+    session_id = call_session_index[call_sid]
+    assert session_id in sessions

@@ -46,7 +46,7 @@ async function blobToWav(blob) {
 }
 
 /* ─── constants ──────────────────────────────────────────────── */
-const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2 };
+const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2, phone_number: "" };
 const defaultAssignment = "Stitch a clean straight seam with consistent margin and explain your quality checks.";
 const INTEGRITY_POLL_MS = 500;
 const MULTIFACE_WARNING_MS = 3000;
@@ -86,8 +86,10 @@ const SRP_COPY = {
     setup_kicker: "Configure", setup_title: "Session Setup", setup_worker_label: "Worker",
     setup_new_worker: "Create new worker", setup_name_ph: "Worker full name *",
     setup_spec_ph: "Specialization", setup_exp_ph: "Years of experience",
+    setup_mode_label: "Interview Mode", setup_mode_web: "Web Session", setup_mode_call: "Phone Call",
+    setup_phone_label: "Worker Phone", setup_phone_ph: "e.g. 9876543210",
     setup_assign_label: "Assignment", setup_starting: "Starting...",
-    setup_restart: "Restart Session", setup_start: "Start Live Session",
+    setup_restart: "Restart Session", setup_start: "Start Live Session", setup_start_call: "Start Phone Call",
     sidebar_heading: "Session Progress",
     sidebar_tasks: [
       { label: "Session configured", sub: "Worker & assignment set" },
@@ -154,8 +156,10 @@ const SRP_COPY = {
     setup_kicker: "सेटअप", setup_title: "सत्र सेटअप", setup_worker_label: "श्रमिक",
     setup_new_worker: "नया श्रमिक बनाएँ", setup_name_ph: "श्रमिक का पूरा नाम *",
     setup_spec_ph: "विशेषज्ञता", setup_exp_ph: "अनुभव (वर्ष)",
+    setup_mode_label: "इंटरव्यू मोड", setup_mode_web: "वेब सत्र", setup_mode_call: "फोन कॉल",
+    setup_phone_label: "श्रमिक का फोन", setup_phone_ph: "जैसे 9876543210",
     setup_assign_label: "असाइनमेंट", setup_starting: "शुरू हो रहा है...",
-    setup_restart: "सत्र पुनः शुरू करें", setup_start: "लाइव सत्र शुरू करें",
+    setup_restart: "सत्र पुनः शुरू करें", setup_start: "लाइव सत्र शुरू करें", setup_start_call: "फोन कॉल शुरू करें",
     sidebar_heading: "सत्र प्रगति",
     sidebar_tasks: [
       { label: "सत्र सेटअप", sub: "श्रमिक और कार्य तय" },
@@ -616,7 +620,22 @@ function VoiceOnboardingScreen({ onComplete, onSkip }) {
 }
 
 /* ─── setup modal ────────────────────────────────────────────── */
-function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorkerId, workerDraft, setWorkerDraft, assignment, setAssignment, onStart, isSubmitting, session }) {
+function SetupModal({
+  open,
+  onClose,
+  workers,
+  selectedWorkerId,
+  setSelectedWorkerId,
+  workerDraft,
+  setWorkerDraft,
+  assignment,
+  setAssignment,
+  interviewMode,
+  setInterviewMode,
+  onStart,
+  isSubmitting,
+  session,
+}) {
   const { locale } = useLanguage();
   const copy = SRP_COPY[locale] ?? SRP_COPY.en;
   const workerOptions = useMemo(() => workers.map((worker) => ({ id: worker.id, label: `${worker.name} | ${worker.specialization}` })), [workers]);
@@ -640,17 +659,35 @@ function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorke
               {workerOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
             </select>
           </div>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_mode_label}</label>
+            <select value={interviewMode} onChange={(event) => setInterviewMode(event.target.value)} style={field}>
+              <option value="web">{copy.setup_mode_web}</option>
+              <option value="call">{copy.setup_mode_call}</option>
+            </select>
+          </div>
           {!selectedWorkerId && (<>
             <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder={copy.setup_name_ph} style={field} />
             <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder={copy.setup_spec_ph} style={field} />
             <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder={copy.setup_exp_ph} style={field} />
           </>)}
+          {interviewMode === "call" && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_phone_label}</label>
+              <input
+                value={workerDraft.phone_number}
+                onChange={(event) => setWorkerDraft((prev) => ({ ...prev, phone_number: event.target.value }))}
+                placeholder={copy.setup_phone_ph}
+                style={field}
+              />
+            </div>
+          )}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_assign_label}</label>
             <textarea value={assignment} onChange={(event) => setAssignment(event.target.value)} rows={3} style={{ ...field, resize: "vertical" }} />
           </div>
           <button onClick={onStart} disabled={isSubmitting} style={{ padding: "12px", borderRadius: 999, border: "none", background: isSubmitting ? "#cbd5e1" : "linear-gradient(135deg,#23314f,#3b82f6)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: isSubmitting ? "not-allowed" : "pointer", letterSpacing: 0.5, marginTop: 4 }}>
-            {isSubmitting ? copy.setup_starting : session?.status === "live" ? copy.setup_restart : copy.setup_start}
+            {isSubmitting ? copy.setup_starting : interviewMode === "call" ? copy.setup_start_call : session?.status === "live" ? copy.setup_restart : copy.setup_start}
           </button>
         </div>
       </div>
@@ -669,6 +706,7 @@ export default function ScreeningRoomPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [workerDraft, setWorkerDraft] = useState(defaultWorker);
   const [assignment, setAssignment] = useState(defaultAssignment);
+  const [interviewMode, setInterviewMode] = useState("web");
   const [session, setSession] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [snapshotNote] = useState("Worker showing seam line and edge finish");
@@ -889,6 +927,19 @@ export default function ScreeningRoomPage() {
 
   const loadWorkers = async () => { try { setWorkers(await screeningApi.listWorkers()); } catch { toast.error("Unable to load workers."); } };
 
+  useEffect(() => {
+    if (!selectedWorkerId) return;
+    const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId);
+    if (!selectedWorker) return;
+    setWorkerDraft((prev) => ({
+      ...prev,
+      name: selectedWorker.name || prev.name,
+      specialization: selectedWorker.specialization || prev.specialization,
+      experience_years: selectedWorker.experience_years ?? prev.experience_years,
+      phone_number: selectedWorker.phone_number || prev.phone_number,
+    }));
+  }, [selectedWorkerId, workers]);
+
   const setupCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -920,11 +971,48 @@ export default function ScreeningRoomPage() {
     if (!assignment.trim()) { toast.error("Please add assignment details."); return; }
     setIsSubmitting(true);
     try {
+      let selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) || null;
+
+      if (interviewMode === "call") {
+        const phoneNumber = workerDraft.phone_number?.trim() || selectedWorker?.phone_number || "";
+        if (!phoneNumber) { toast.error("Add the worker phone number to start the call."); return; }
+
+        const callPayload = {
+          phone_number: phoneNumber,
+          assignment: assignment.trim(),
+          worker_name: selectedWorker?.name || workerDraft.name.trim() || undefined,
+          specialization: selectedWorker?.specialization || workerDraft.specialization.trim() || undefined,
+          experience_years: selectedWorker?.experience_years ?? (Number(workerDraft.experience_years) || 0),
+        };
+        const started = await screeningApi.startTwilioCall(callPayload);
+        resetIntegrityState();
+        setSession(started.session);
+        setIntegrityLog(started.session.integrity_log || null);
+        setCurrentQuestion(started.first_question);
+        setLiveScore(started.session.live_score);
+        setTranscript(started.session.transcript || []);
+        setSessionDone(false);
+        setSetupOpen(false);
+        setCurrentPhase(started.session.current_phase || "intro");
+        setShowTextFallback(false);
+        setTextFallbackInput("");
+        toast.success(`Call queued${started.call?.sid ? `: ${started.call.sid}` : "."}`);
+        return;
+      }
+
       let workerId = selectedWorkerId;
       if (!workerId) {
-        if (!workerDraft.name.trim()) { toast.error("Select a worker or add worker name."); setIsSubmitting(false); return; }
-        const created = await screeningApi.createWorker({ name: workerDraft.name.trim(), specialization: workerDraft.specialization.trim(), experience_years: Number(workerDraft.experience_years) || 0 });
-        workerId = created.id; setSelectedWorkerId(created.id); setWorkers(p => [created, ...p]);
+        if (!workerDraft.name.trim()) { toast.error("Select a worker or add worker name."); return; }
+        const created = await screeningApi.createWorker({
+          name: workerDraft.name.trim(),
+          specialization: workerDraft.specialization.trim(),
+          experience_years: Number(workerDraft.experience_years) || 0,
+          phone_number: workerDraft.phone_number?.trim() || undefined,
+        });
+        workerId = created.id;
+        selectedWorker = created;
+        setSelectedWorkerId(created.id);
+        setWorkers(p => [created, ...p]);
       }
       const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() }, locale);
       resetIntegrityState();
@@ -1654,6 +1742,7 @@ export default function ScreeningRoomPage() {
         workers={workers} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId}
         workerDraft={workerDraft} setWorkerDraft={setWorkerDraft}
         assignment={assignment} setAssignment={setAssignment}
+        interviewMode={interviewMode} setInterviewMode={setInterviewMode}
         onStart={startLiveSession} isSubmitting={isSubmitting} session={session}
       />
 
@@ -1661,9 +1750,6 @@ export default function ScreeningRoomPage() {
     </>
   );
 }
-
-
-
 
 
 

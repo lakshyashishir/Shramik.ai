@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from app.agents.screening_logic import extract_worker_profile_from_text
-from app.integrations.exotel.client import normalize_indian_phone_number
+from app.integrations.phone import normalize_phone_number
 from app.models import Worker, WorkerCreate, WorkerVoiceOnboardRequest, new_id, utc_now_iso
 from app.services.store import workers
 
@@ -15,7 +15,7 @@ def create_worker(payload: WorkerCreate) -> Worker:
         name=payload.name.strip(),
         specialization=payload.specialization.strip(),
         experience_years=int(payload.experience_years),
-        phone_number=normalize_indian_phone_number(payload.phone_number.strip()) if payload.phone_number else None,
+        phone_number=normalize_phone_number(payload.phone_number.strip()) if payload.phone_number else None,
         created_at=utc_now_iso(),
     )
     workers[worker.id] = worker
@@ -30,7 +30,7 @@ def onboard_worker_by_voice(payload: WorkerVoiceOnboardRequest) -> Worker:
         name=profile["name"],
         specialization=profile["specialization"],
         experience_years=profile["experience_years"],
-        phone_number=normalize_indian_phone_number(payload.phone_number.strip()) if payload.phone_number else None,
+        phone_number=normalize_phone_number(payload.phone_number.strip()) if payload.phone_number else None,
         created_at=utc_now_iso(),
     )
     workers[worker.id] = worker
