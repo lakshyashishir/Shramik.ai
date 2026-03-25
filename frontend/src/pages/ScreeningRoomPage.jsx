@@ -741,6 +741,7 @@ export default function ScreeningRoomPage() {
   const [textFallbackInput, setTextFallbackInput] = useState("");
   const [currentPhase, setCurrentPhase] = useState("intro");
   const [handOverlayOn, setHandOverlayOn] = useState(true);
+  const [autoListenEnabled] = useState(true); // auto-start recording after AI speaks
   const lastAutoAssignmentRef = useRef(defaultAssignment);
   const assignmentTouchedRef = useRef(false);
   const [priorWorkImages, setPriorWorkImages] = useState([]);
@@ -772,6 +773,11 @@ export default function ScreeningRoomPage() {
   const lastIntegrityEventAtRef = useRef({});
   const transcriptListRef = useRef(null);
   const mediaRecorderRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const silenceRafRef = useRef(null);
+  const autoListenPendingRef = useRef(false);
 
   const isSessionLive = session?.status === "live";
   const scoreColor = liveScore >= 70 ? "#2563eb" : liveScore >= 45 ? "#3b82f6" : "#93c5fd";
@@ -893,6 +899,9 @@ export default function ScreeningRoomPage() {
       if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
       window.speechSynthesis.cancel();
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+      clearTimeout(silenceTimerRef.current);
+      if (silenceRafRef.current) cancelAnimationFrame(silenceRafRef.current);
+      if (audioContextRef.current?.state !== "closed") audioContextRef.current?.close?.();
     };
   }, []);
 
@@ -1046,6 +1055,16 @@ export default function ScreeningRoomPage() {
     } catch { setCameraError("Camera/mic blocked. Enable access in browser settings."); toast.error("Camera or microphone permission denied."); }
   };
 
+  const triggerAutoListen = () => {
+    if (!autoListenEnabled || autoListenPendingRef.current) return;
+    autoListenPendingRef.current = true;
+    // Small delay so user hears AI finish before mic opens
+    setTimeout(() => {
+      autoListenPendingRef.current = false;
+      startVoiceInput(true); // true = auto mode with silence detection
+    }, 800);
+  };
+
   const speakAi = async (text) => {
     if (!isVoiceEnabled || !text) return;
     setAiSpeaking(true);
@@ -1053,12 +1072,12 @@ export default function ScreeningRoomPage() {
       const audioBlob = await screeningApi.ttsSynthesize(text);
       const url = URL.createObjectURL(audioBlob);
       const audio = new Audio(url);
-      audio.onended = () => { setAiSpeaking(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onended = () => { setAiSpeaking(false); URL.revokeObjectURL(url); triggerAutoListen(); };
+      audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url); triggerAutoListen(); };
       await audio.play();
     } catch {
       const msg = new SpeechSynthesisUtterance(text);
-      msg.onend = () => setAiSpeaking(false);
+      msg.onend = () => { setAiSpeaking(false); triggerAutoListen(); };
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(msg);
     }
@@ -1106,11 +1125,62 @@ export default function ScreeningRoomPage() {
     finally { setIsSubmitting(false); setIsListening(false); }
   };
 
-  const startVoiceInput = async () => {
-    if (integrityPaused) { toast.error("Interview paused."); return; }
+  const stopSilenceDetection = () => {
+    clearTimeout(silenceTimerRef.current);
+    silenceTimerRef.current = null;
+    if (silenceRafRef.current) cancelAnimationFrame(silenceRafRef.current);
+    silenceRafRef.current = null;
+    if (audioContextRef.current?.state !== "closed") audioContextRef.current?.close?.();
+    audioContextRef.current = null;
+    analyserRef.current = null;
+  };
+
+  const startSilenceDetection = (stream, onSilence) => {
+    const SILENCE_THRESHOLD = 15;   // audio level below this = silence
+    const SILENCE_DURATION = 3000;  // 3s of silence = stop
+    const SPEECH_STARTED_MIN = 500; // must speak at least 500ms before silence triggers
+
+    const ctx = new AudioContext();
+    audioContextRef.current = ctx;
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyserRef.current = analyser;
+
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    let speechStartedAt = 0;
+    let silentSince = 0;
+
+    const check = () => {
+      if (!analyserRef.current) return;
+      silenceRafRef.current = requestAnimationFrame(check);
+      analyser.getByteFrequencyData(data);
+      const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
+
+      if (avg > SILENCE_THRESHOLD) {
+        // Speaking
+        if (!speechStartedAt) speechStartedAt = Date.now();
+        silentSince = 0;
+      } else {
+        // Silent
+        if (speechStartedAt && !silentSince) silentSince = Date.now();
+        if (speechStartedAt && silentSince && Date.now() - silentSince > SILENCE_DURATION && Date.now() - speechStartedAt > SPEECH_STARTED_MIN) {
+          onSilence();
+          return;
+        }
+      }
+    };
+    check();
+  };
+
+  const startVoiceInput = async (autoMode = false) => {
+    if (integrityPaused) { if (!autoMode) toast.error("Interview paused."); return; }
+    if (!isSessionLive && autoMode) return;
 
     // If already recording, stop it
     if (isListening && mediaRecorderRef.current) {
+      stopSilenceDetection();
       mediaRecorderRef.current.stop();
       return;
     }
@@ -1124,6 +1194,7 @@ export default function ScreeningRoomPage() {
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
 
       recorder.onstop = async () => {
+        stopSilenceDetection();
         stream.getTracks().forEach((t) => t.stop());
         mediaRecorderRef.current = null;
         setIsListening(false);
@@ -1137,19 +1208,27 @@ export default function ScreeningRoomPage() {
             submitWorkerTurn(result.transcript.trim());
           }
         } catch {
-          toast.error("Transcription failed — use text input below.");
+          if (!autoMode) toast.error("Transcription failed — use text input below.");
           setShowTextFallback(true);
         }
       };
 
       setIsListening(true);
       recorder.start();
-      // Auto-stop after 30s
-      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 30000);
+
+      // Silence detection: auto-stop when worker stops talking
+      startSilenceDetection(stream, () => {
+        if (recorder.state === "recording") recorder.stop();
+      });
+
+      // Hard limit: auto-stop after 45s
+      setTimeout(() => { if (recorder.state === "recording") recorder.stop(); }, 45000);
     } catch {
       setIsListening(false);
-      toast.error("Microphone access failed — use text input below.");
-      setShowTextFallback(true);
+      if (!autoMode) {
+        toast.error("Microphone access failed — use text input below.");
+        setShowTextFallback(true);
+      }
     }
   };
 
@@ -1229,36 +1308,34 @@ export default function ScreeningRoomPage() {
         .srp textarea:focus, .srp input:focus { border-color: rgba(59,130,246,0.4) !important; }
         .srp textarea::placeholder { color: rgba(113,103,93,0.7); }
         .srp-mobile-bar { display: none; }
+        .srp-mobile-caption { display: none; }
+        .srp-mobile-voice-bar { display: none; }
+        .srp-mobile-ai-half { display: none; }
+        .srp-mobile-mic-float { display: none; }
         @media (max-width: 768px) {
           .srp-sidebar { display: none !important; }
-          /* Full-bleed container — no card border/shadow on mobile */
           .srp-split { flex-direction: column !important; border-radius: 0 !important; border: none !important; box-shadow: none !important; margin: 0 !important; }
-          /* Video on top, transcript below */
-          .srp-right { order: -1 !important; width: 100% !important; flex: none !important; min-height: 0 !important; height: 36dvh !important; border-right: none !important; border-bottom: 1px solid rgba(35,49,79,0.06) !important; }
-          .srp-left { width: 100% !important; flex: 1 !important; min-height: 0 !important; border-right: none !important; overflow: hidden !important; }
-          /* Prevent horizontal overflow */
+          /* Hide desktop left panel on mobile */
+          .srp-left { display: none !important; }
+          /* Video = bottom half */
+          .srp-right { order: 2 !important; width: 100% !important; flex: 1 !important; min-height: 0 !important; border-right: none !important; border-bottom: none !important; }
           .srp { overflow-x: hidden !important; }
-          /* Mobile top bar */
-          .srp-mobile-bar { display: flex !important; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid rgba(35,49,79,0.08); background: #fff; flex-shrink: 0; gap: 8px; }
-          /* Smaller orb on mobile */
-          .srp-orb-wrap { width: 100px !important; height: 100px !important; }
-          /* Tighter orb section */
-          .srp-orb-section { padding: 12px 16px 8px !important; gap: 10px !important; }
-          /* Tighter transcript list padding */
-          .srp-transcript-list { padding: 0 12px 8px !important; }
-          /* Voice area compact */
-          .srp-voice-area { padding: 8px 12px !important; }
-          /* Touch targets */
-          .srp-mic-btn { width: 52px !important; height: 52px !important; }
-          .srp button { min-height: 44px; min-width: 44px; }
-          .srp-mobile-end-btn { padding: 8px 14px !important; font-size: 12px !important; min-height: 44px !important; }
-          /* Full-width modals as bottom sheet */
+          .srp-mobile-bar { display: none !important; }
+          .srp-mobile-end-btn { padding: 6px 12px !important; font-size: 11px !important; min-height: 36px !important; }
+          .srp-video-badge { display: none !important; }
+          .srp-snapshot-bar { display: none !important; }
+          .srp-mobile-caption { display: flex !important; }
+          .srp-mobile-voice-bar { display: flex !important; }
+          /* Show AI half on mobile */
+          .srp-mobile-ai-half { display: flex !important; order: 1 !important; }
+          .srp-mobile-mic-float { display: flex !important; }
           .srp-modal { border-radius: 20px 20px 0 0 !important; max-height: 92dvh !important; }
-          /* Right panel bottom strip */
-          .srp-right-bottom { padding: 8px 10px !important; }
         }
         @media (min-width: 769px) {
           .srp-mobile-bar { display: none !important; }
+          .srp-mobile-caption { display: none !important; }
+          .srp-mobile-voice-bar { display: none !important; }
+          .srp-mobile-ai-half { display: none !important; }
         }
       `}</style>
 
@@ -1276,7 +1353,7 @@ export default function ScreeningRoomPage() {
         display: "flex", flexDirection: "column",
         overflow: "hidden",
       }}>
-        {/* ── Floating action buttons — top-right, desktop only ── */}
+        {/* ── Floating action buttons — desktop only ── */}
         <div style={{
           position: "fixed", top: 16, right: 16, zIndex: 50,
           alignItems: "center", gap: 8,
@@ -1313,7 +1390,6 @@ export default function ScreeningRoomPage() {
               {copy.sidebar_end}
             </button>
           )}
-          <LanguageToggle compact />
         </div>
 
         {/* Mobile top bar — hidden on desktop */}
@@ -1325,7 +1401,6 @@ export default function ScreeningRoomPage() {
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <LanguageToggle compact />
             <span style={{ fontSize: 13, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
             {isSessionLive && (
               <button onClick={finishScreening} disabled={isSubmitting} className="srp-mobile-end-btn" style={{ padding: "8px 14px", borderRadius: 20, border: "none", background: "rgba(59,130,246,0.1)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
@@ -1448,6 +1523,57 @@ export default function ScreeningRoomPage() {
             </div></>}
           </aside>
 
+          {/* ════ MOBILE AI HALF — orb + caption (white bg, no mic) ════ */}
+          <section className="srp-mobile-ai-half" style={{
+            width: "100%", height: "50dvh", flexShrink: 0,
+            flexDirection: "column", alignItems: "center", justifyContent: "center",
+            background: "#ffffff",
+            position: "relative", overflow: "hidden",
+            borderBottom: "1px solid rgba(35,49,79,0.08)",
+          }}>
+            {/* score + phase pill */}
+            <div style={{ position: "absolute", top: 10, left: 14, display: "flex", alignItems: "center", gap: 8, zIndex: 2 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: scoreColor }}>{Math.round(liveScore)}%</span>
+              {session && <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(113,103,93,0.5)", textTransform: "capitalize" }}>{currentPhase}</span>}
+            </div>
+            {/* end / setup button */}
+            <div style={{ position: "absolute", top: 10, right: 14, zIndex: 2 }}>
+              {isSessionLive ? (
+                <button onClick={finishScreening} disabled={isSubmitting} style={{ padding: "5px 14px", borderRadius: 20, border: "1px solid rgba(59,130,246,0.2)", background: "rgba(59,130,246,0.08)", color: "#3b82f6", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {copy.mobile_end}
+                </button>
+              ) : !session && (
+                <button onClick={() => setSetupOpen(true)} style={{ padding: "5px 14px", borderRadius: 20, border: "1px solid rgba(35,49,79,0.12)", background: "rgba(35,49,79,0.04)", color: "#23314f", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  {copy.mobile_setup}
+                </button>
+              )}
+            </div>
+
+            {/* Orb — smaller for mobile */}
+            <div style={{ position: "relative", zIndex: 1, transform: "scale(0.55)", marginTop: -14, marginBottom: -24 }}>
+              <AiOrb speaking={aiSpeaking} paused={integrityPaused} score={liveScore} />
+            </div>
+
+            {/* Voice wave indicator */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <VoiceWave active={aiSpeaking} color="#3b82f6" />
+              <span style={{ fontSize: 9, color: "rgba(59,130,246,0.65)", letterSpacing: 2, fontWeight: 700, textTransform: "uppercase" }}>
+                {aiSpeaking ? copy.ai_speaking : copy.idle}
+              </span>
+            </div>
+
+            {/* Caption — current AI question */}
+            <div style={{ position: "relative", zIndex: 1, textAlign: "center", padding: "0 24px", maxWidth: 340 }}>
+              <p style={{
+                fontSize: 14, color: "#23314f", lineHeight: 1.6, margin: 0,
+                overflow: "hidden", display: "-webkit-box",
+                WebkitLineClamp: 3, WebkitBoxOrient: "vertical",
+              }}>
+                {currentQuestion || (session ? copy.waiting_ai : copy.setup_to_begin)}
+              </p>
+            </div>
+          </section>
+
           {/* ════ LEFT — AI Orb + Transcript ════ */}
           <section className="srp-left" aria-label="AI Interviewer and Transcript" style={{
             flex: 1, height: "100%",
@@ -1489,24 +1615,15 @@ export default function ScreeningRoomPage() {
 
             <div style={{ height: 1, background: "rgba(35,49,79,0.04)", flexShrink: 0 }} />
 
-            {/* transcript */}
-            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-              <div style={{ padding: "10px 20px 6px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "rgba(113,103,93,0.72)" }}>
-                  {copy.live_transcript}
-                </span>
-                <span style={{ fontSize: 9, color: "rgba(113,103,93,0.6)" }}>{transcript.length} {copy.total}</span>
-              </div>
-
-              <div ref={transcriptListRef} className="srp-transcript-list" style={{ flex: 1, overflowY: "auto", padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 10, minHeight: 0, overscrollBehavior: "contain" }}>
-                {transcript.length === 0 ? (
-                  <p style={{ fontSize: 12, color: "rgba(113,103,93,0.6)", textAlign: "center", marginTop: 20, fontStyle: "italic" }}>
-                    {copy.transcript_empty}
-                  </p>
-                ) : (
-                  visibleTranscript.map((line, i) => <TranscriptMsg key={`${line.timestamp}-${i}`} line={line} />)
-                )}
-              </div>
+            {/* captions — last 2 messages only */}
+            <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", padding: "12px 20px", minHeight: 0 }}>
+              {transcript.length === 0 ? (
+                <p style={{ fontSize: 12, color: "rgba(113,103,93,0.6)", textAlign: "center", fontStyle: "italic" }}>
+                  {copy.transcript_empty}
+                </p>
+              ) : (
+                transcript.slice(-2).map((line, i) => <TranscriptMsg key={`${line.timestamp}-${i}`} line={line} />)
+              )}
             </div>
 
             {isSessionLive && (
@@ -1803,7 +1920,7 @@ export default function ScreeningRoomPage() {
               )}
 
               {/* top-left: live badge */}
-              <div style={{
+              <div className="srp-video-badge" style={{
                 position: "absolute", top: 14, left: 14,
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "5px 11px", borderRadius: 20,
@@ -1822,7 +1939,7 @@ export default function ScreeningRoomPage() {
               </div>
 
               {/* top-right: integrity eye */}
-              <div style={{
+              <div className="srp-video-badge" style={{
                 position: "absolute", top: 14, right: 14,
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "5px 11px", borderRadius: 20,
@@ -1836,6 +1953,7 @@ export default function ScreeningRoomPage() {
               </div>
 
               <button
+                className="srp-video-badge"
                 onClick={() => setHandOverlayOn((prev) => !prev)}
                 style={{
                   position: "absolute", top: 46, right: 14,
@@ -1852,10 +1970,43 @@ export default function ScreeningRoomPage() {
               >
                 {handOverlayOn ? copy.hands_on : copy.hands_off}
               </button>
+
+              {/* ── Floating mic button on camera — mobile only ── */}
+              <div className="srp-mobile-mic-float" style={{
+                position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)",
+                display: "none", flexDirection: "column", alignItems: "center", gap: 6, zIndex: 10,
+              }}>
+                {isListening && (
+                  <div style={{
+                    padding: "4px 12px", borderRadius: 16,
+                    background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)",
+                    fontSize: 11, color: "#f87171", fontWeight: 600,
+                    animation: "recPulse 1s ease-in-out infinite",
+                  }}>
+                    {copy.status_recording}
+                  </div>
+                )}
+                <button
+                  onClick={startVoiceInput}
+                  disabled={!isSessionLive || integrityPaused}
+                  style={{
+                    width: 56, height: 56, borderRadius: "50%", border: "none",
+                    background: isListening ? "rgba(239,68,68,0.9)" : "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+                    color: "#fff",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    cursor: !isSessionLive ? "not-allowed" : "pointer",
+                    opacity: !isSessionLive ? 0.35 : 1,
+                    boxShadow: isListening ? "0 0 0 4px rgba(239,68,68,0.25)" : "0 4px 20px rgba(59,130,246,0.3)",
+                  }}
+                >
+                  {isListening ? <Square size={18} fill="#fff" /> : <Mic size={22} />}
+                </button>
+              </div>
+
             </div>
 
-            {/* bottom strip */}
-            <div style={{
+            {/* bottom strip — hidden on mobile */}
+            <div className="srp-snapshot-bar" style={{
               flexShrink: 0, padding: "10px 14px",
               borderTop: "1px solid rgba(35,49,79,0.08)",
               background: "#ffffff",

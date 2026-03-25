@@ -6,6 +6,7 @@ import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import WorkersBoardPage from "@/pages/WorkersBoardPage";
 import ReviewQueuePage from "@/pages/ReviewQueuePage";
+import LandingPage from "@/pages/LandingPage";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/i18n/language";
 import { ROLES, RoleProvider, roleConfig, useRole } from "@/context/role";
@@ -184,15 +185,17 @@ function AppShell() {
   const hideNavigation = location.pathname === "/screening";
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       {!hideNavigation && <MainNavigation />}
-      <Routes>
-        <Route path="/" element={<Navigate to="/screening" replace />} />
-        <Route path="/screening" element={<ScreeningRoomPage />} />
-        <Route path="/jobs" element={<WorkersBoardPage />} />
-        <Route path="/admin" element={<AdminDashboardPage />} />
-        <Route path="/admin/review" element={<ReviewQueuePage />} />
-      </Routes>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/screening" element={<ScreeningRoomPage />} />
+          <Route path="/jobs" element={<WorkersBoardPage />} />
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/review" element={<ReviewQueuePage />} />
+        </Routes>
+      </div>
     </div>
   );
 }
@@ -200,7 +203,7 @@ function AppShell() {
 /* ─── Root ────────────────────────────────────────────────────── */
 export default function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+    <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false}>
       <LanguageProvider>
         <RoleProvider>
           <BrowserRouter>
