@@ -2,11 +2,11 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.health import router as health_router
-from app.api.routes.call import router as call_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.speech import router as speech_router
 from app.api.routes.workers import router as workers_router
 from app.config import settings
+from app.services.store import init_store
 
 app = FastAPI(title=settings.app_name)
 
@@ -22,4 +22,8 @@ app.include_router(health_router, prefix="/api")
 app.include_router(workers_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
 app.include_router(speech_router, prefix="/api")
-app.include_router(call_router, prefix="/api")
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_store()

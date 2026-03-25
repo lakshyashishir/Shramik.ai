@@ -46,8 +46,28 @@ async function blobToWav(blob) {
 }
 
 /* ─── constants ──────────────────────────────────────────────── */
-const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2, phone_number: "" };
-const defaultAssignment = "Stitch a clean straight seam with consistent margin and explain your quality checks.";
+const defaultWorker = { name: "", specialization: "Industrial Stitching", experience_years: 2 };
+const ASSIGNMENT_TEMPLATES = {
+  garment_worker: "Stitch a clean straight seam with consistent margin and explain your quality checks.",
+  beauty_professional: "Show a recent beauty service output (hair/mehendi/nail) and explain your process steps.",
+  carpenter: "Make a simple joint on scrap wood (butt/half-lap) and explain your tool and marking process.",
+  electrician: "Draw a simple 2-way switch circuit for one lamp with L/N/E and explain the logic.",
+  domain_unknown: "Complete registration questions about your work preferences and availability.",
+};
+const DOMAIN_KEYWORDS = {
+  electrician: ["electric", "wiring", "bijli", "circuit", "switch", "panel", "mcb", "rccb", "rcbo"],
+  beauty_professional: ["beauty", "hair", "mehendi", "henna", "nail", "salon", "makeup"],
+  carpenter: ["carpenter", "wood", "furniture", "joinery", "door", "window", "saw", "chisel"],
+  garment_worker: ["garment", "tailor", "tailoring", "stitch", "sew", "silai", "kurta", "blouse", "shirt", "pant", "seam"],
+};
+const detectDomainFromText = (text = "") => {
+  const lower = text.toLowerCase();
+  for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
+    if (keywords.some((k) => lower.includes(k))) return domain;
+  }
+  return "domain_unknown";
+};
+const defaultAssignment = ASSIGNMENT_TEMPLATES.garment_worker;
 const INTEGRITY_POLL_MS = 500;
 const MULTIFACE_WARNING_MS = 3000;
 const MODEL_URL =
@@ -72,8 +92,8 @@ const HAND_CONNECTIONS = [
 /* ─── i18n copy ──────────────────────────────────────────────── */
 const SRP_COPY = {
   en: {
-    vob_skip: "Skip", vob_intro_title: "Hello!", vob_intro_sub: "Tell us your name and trade",
-    vob_intro_example: '"My name is Ramu, I am a tailor"',
+    vob_skip: "Skip", vob_intro_title: "Hello!", vob_intro_sub: "Tell us your name, trade, and years of experience",
+    vob_intro_example: '"My name is Ramu, I am a tailor with 5 years experience"',
     vob_listening_title: "Listening...", vob_listening_sub: "Tell us your name, trade and experience",
     vob_processing_title: "Processing...", vob_processing_sub: "Processing your voice",
     vob_confirm_exp: "yrs experience", vob_confirm_starting: "Starting interview...",
@@ -81,15 +101,13 @@ const SRP_COPY = {
     vob_error_voice: "Voice was unclear. Please try again.",
     vob_error_mic: "Microphone not working. Press Skip for manual setup.",
     vob_mic_hint: "Press mic and speak", vob_recording_hint: "Recording... press again to stop",
-    vob_tts_welcome: "Hello! I am your Shramik Mitra. Please tell me your name and trade.",
+    vob_tts_welcome: "Hello! I am your Shramik Mitra. Please tell me your name, trade, and years of experience.",
     vob_tts_confirm: (name) => `Your name ${name} has been registered. Ready to start?`,
     setup_kicker: "Configure", setup_title: "Session Setup", setup_worker_label: "Worker",
     setup_new_worker: "Create new worker", setup_name_ph: "Worker full name *",
     setup_spec_ph: "Specialization", setup_exp_ph: "Years of experience",
-    setup_mode_label: "Interview Mode", setup_mode_web: "Web Session", setup_mode_call: "Phone Call",
-    setup_phone_label: "Worker Phone", setup_phone_ph: "e.g. 9876543210",
     setup_assign_label: "Assignment", setup_starting: "Starting...",
-    setup_restart: "Restart Session", setup_start: "Start Live Session", setup_start_call: "Start Phone Call",
+    setup_restart: "Restart Session", setup_start: "Start Live Session",
     sidebar_heading: "Session Progress",
     sidebar_tasks: [
       { label: "Session configured", sub: "Worker & assignment set" },
@@ -110,6 +128,19 @@ const SRP_COPY = {
     live_transcript: "Live Transcript", total: "total",
     transcript_empty: "Transcript appears after session starts.",
     voice_capture: "Voice Capture",
+    prior_work_title: "Prior Work (Optional)",
+    prior_work_sub: "Upload 1-3 photos to generate grounded questions.",
+    prior_work_upload: "Select photos",
+    prior_work_note_ph: "Short note about the work (optional)",
+    prior_work_send: "Submit",
+    prior_work_done: (n) => `Saved. ${n} grounded questions ready.`,
+    self_rate_title: "Self-Ratings (Phase 1B)",
+    self_rate_send: "Save Ratings",
+    self_rate_done: "Self-ratings saved.",
+    portfolio_title: "Portfolio Enrichment (Optional)",
+    portfolio_sub: "Upload extra samples for recruiter profile depth.",
+    portfolio_send: "Add Portfolio",
+    portfolio_done: (n) => `Portfolio updated (${n} items).`,
     status_paused: "Interview paused until integrity clears.",
     status_recording: "Recording… tap mic again to stop.",
     status_tap_mic: "Tap the mic to record a spoken answer.",
@@ -142,8 +173,8 @@ const SRP_COPY = {
     log_change: "Face change", log_flag: "Flag", log_warning: "warning", log_label: "Log",
   },
   hi: {
-    vob_skip: "छोड़ें", vob_intro_title: "नमस्ते!", vob_intro_sub: "अपना नाम और काम बोलिए",
-    vob_intro_example: '"मेरा नाम रामू है, मैं दर्ज़ी हूँ"',
+    vob_skip: "छोड़ें", vob_intro_title: "नमस्ते!", vob_intro_sub: "अपना नाम, काम, और अनुभव बताइए",
+    vob_intro_example: '"मेरा नाम रामू है, मैं दर्ज़ी हूँ और 5 साल का अनुभव है"',
     vob_listening_title: "सुन रहा हूँ...", vob_listening_sub: "नाम, काम, और अनुभव बताओ",
     vob_processing_title: "समझ रहा हूँ...", vob_processing_sub: "आपकी आवाज़ प्रोसेस हो रही है",
     vob_confirm_exp: "साल का अनुभव", vob_confirm_starting: "इंटरव्यू शुरू हो रहा है...",
@@ -151,15 +182,13 @@ const SRP_COPY = {
     vob_error_voice: "आवाज़ साफ नहीं आई। दोबारा कोशिश करें।",
     vob_error_mic: "माइक्रोफ़ोन काम नहीं कर रहा। छोड़ें बटन दबाकर मैनुअल सेटअप करें।",
     vob_mic_hint: "माइक दबाओ और बोलो", vob_recording_hint: "रिकॉर्डिंग... बंद करने के लिए दोबारा दबाओ",
-    vob_tts_welcome: "नमस्ते! मैं आपका श्रमिक मित्र हूँ। अपना नाम और काम बताइए।",
+    vob_tts_welcome: "नमस्ते! मैं आपका श्रमिक मित्र हूँ। अपना नाम, काम, और अनुभव बताइए।",
     vob_tts_confirm: (name) => `आपका नाम ${name} रजिस्टर हो गया। इंटरव्यू शुरू करें?`,
     setup_kicker: "सेटअप", setup_title: "सत्र सेटअप", setup_worker_label: "श्रमिक",
     setup_new_worker: "नया श्रमिक बनाएँ", setup_name_ph: "श्रमिक का पूरा नाम *",
     setup_spec_ph: "विशेषज्ञता", setup_exp_ph: "अनुभव (वर्ष)",
-    setup_mode_label: "इंटरव्यू मोड", setup_mode_web: "वेब सत्र", setup_mode_call: "फोन कॉल",
-    setup_phone_label: "श्रमिक का फोन", setup_phone_ph: "जैसे 9876543210",
     setup_assign_label: "असाइनमेंट", setup_starting: "शुरू हो रहा है...",
-    setup_restart: "सत्र पुनः शुरू करें", setup_start: "लाइव सत्र शुरू करें", setup_start_call: "फोन कॉल शुरू करें",
+    setup_restart: "सत्र पुनः शुरू करें", setup_start: "लाइव सत्र शुरू करें",
     sidebar_heading: "सत्र प्रगति",
     sidebar_tasks: [
       { label: "सत्र सेटअप", sub: "श्रमिक और कार्य तय" },
@@ -180,6 +209,19 @@ const SRP_COPY = {
     live_transcript: "लाइव ट्रांसक्रिप्ट", total: "कुल",
     transcript_empty: "सत्र शुरू होने के बाद ट्रांसक्रिप्ट दिखेगा।",
     voice_capture: "आवाज़ कैप्चर",
+    prior_work_title: "पिछला काम (वैकल्पिक)",
+    prior_work_sub: "1-3 फोटो अपलोड करें ताकि grounded सवाल बनें।",
+    prior_work_upload: "फोटो चुनें",
+    prior_work_note_ph: "काम का छोटा नोट (वैकल्पिक)",
+    prior_work_send: "सबमिट",
+    prior_work_done: (n) => `सेव हो गया। ${n} grounded सवाल तैयार।`,
+    self_rate_title: "सेल्फ-रेटिंग (Phase 1B)",
+    self_rate_send: "रेटिंग सेव करें",
+    self_rate_done: "सेल्फ-रेटिंग सेव हो गई।",
+    portfolio_title: "पोर्टफोलियो (वैकल्पिक)",
+    portfolio_sub: "रिक्रूटर प्रोफाइल के लिए अतिरिक्त सैंपल अपलोड करें।",
+    portfolio_send: "पोर्टफोलियो जोड़ें",
+    portfolio_done: (n) => `पोर्टफोलियो अपडेट (${n} items)।`,
     status_paused: "निगरानी मंजूरी तक इंटरव्यू रुका।",
     status_recording: "रिकॉर्डिंग... रोकने के लिए फिर दबाएँ।",
     status_tap_mic: "जवाब देने के लिए माइक दबाएँ।",
@@ -620,22 +662,7 @@ function VoiceOnboardingScreen({ onComplete, onSkip }) {
 }
 
 /* ─── setup modal ────────────────────────────────────────────── */
-function SetupModal({
-  open,
-  onClose,
-  workers,
-  selectedWorkerId,
-  setSelectedWorkerId,
-  workerDraft,
-  setWorkerDraft,
-  assignment,
-  setAssignment,
-  interviewMode,
-  setInterviewMode,
-  onStart,
-  isSubmitting,
-  session,
-}) {
+function SetupModal({ open, onClose, workers, selectedWorkerId, setSelectedWorkerId, workerDraft, setWorkerDraft, assignment, onAssignmentChange, onStart, isSubmitting, session }) {
   const { locale } = useLanguage();
   const copy = SRP_COPY[locale] ?? SRP_COPY.en;
   const workerOptions = useMemo(() => workers.map((worker) => ({ id: worker.id, label: `${worker.name} | ${worker.specialization}` })), [workers]);
@@ -659,35 +686,17 @@ function SetupModal({
               {workerOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
             </select>
           </div>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_mode_label}</label>
-            <select value={interviewMode} onChange={(event) => setInterviewMode(event.target.value)} style={field}>
-              <option value="web">{copy.setup_mode_web}</option>
-              <option value="call">{copy.setup_mode_call}</option>
-            </select>
-          </div>
           {!selectedWorkerId && (<>
             <input value={workerDraft.name} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder={copy.setup_name_ph} style={field} />
             <input value={workerDraft.specialization} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, specialization: event.target.value }))} placeholder={copy.setup_spec_ph} style={field} />
             <input type="number" min={0} max={50} value={workerDraft.experience_years} onChange={(event) => setWorkerDraft((prev) => ({ ...prev, experience_years: Number(event.target.value) || 0 }))} placeholder={copy.setup_exp_ph} style={field} />
           </>)}
-          {interviewMode === "call" && (
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_phone_label}</label>
-              <input
-                value={workerDraft.phone_number}
-                onChange={(event) => setWorkerDraft((prev) => ({ ...prev, phone_number: event.target.value }))}
-                placeholder={copy.setup_phone_ph}
-                style={field}
-              />
-            </div>
-          )}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: "#71675d", textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 5 }}>{copy.setup_assign_label}</label>
-            <textarea value={assignment} onChange={(event) => setAssignment(event.target.value)} rows={3} style={{ ...field, resize: "vertical" }} />
+            <textarea value={assignment} onChange={(event) => onAssignmentChange(event.target.value)} rows={3} style={{ ...field, resize: "vertical" }} />
           </div>
           <button onClick={onStart} disabled={isSubmitting} style={{ padding: "12px", borderRadius: 999, border: "none", background: isSubmitting ? "#cbd5e1" : "linear-gradient(135deg,#23314f,#3b82f6)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: isSubmitting ? "not-allowed" : "pointer", letterSpacing: 0.5, marginTop: 4 }}>
-            {isSubmitting ? copy.setup_starting : interviewMode === "call" ? copy.setup_start_call : session?.status === "live" ? copy.setup_restart : copy.setup_start}
+            {isSubmitting ? copy.setup_starting : session?.status === "live" ? copy.setup_restart : copy.setup_start}
           </button>
         </div>
       </div>
@@ -706,7 +715,6 @@ export default function ScreeningRoomPage() {
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [workerDraft, setWorkerDraft] = useState(defaultWorker);
   const [assignment, setAssignment] = useState(defaultAssignment);
-  const [interviewMode, setInterviewMode] = useState("web");
   const [session, setSession] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [snapshotNote] = useState("Worker showing seam line and edge finish");
@@ -733,6 +741,16 @@ export default function ScreeningRoomPage() {
   const [textFallbackInput, setTextFallbackInput] = useState("");
   const [currentPhase, setCurrentPhase] = useState("intro");
   const [handOverlayOn, setHandOverlayOn] = useState(true);
+  const lastAutoAssignmentRef = useRef(defaultAssignment);
+  const assignmentTouchedRef = useRef(false);
+  const [priorWorkImages, setPriorWorkImages] = useState([]);
+  const [priorWorkNote, setPriorWorkNote] = useState("");
+  const [priorWorkStatus, setPriorWorkStatus] = useState("");
+  const [selfRatings, setSelfRatings] = useState({});
+  const [selfRatingStatus, setSelfRatingStatus] = useState("");
+  const [portfolioImages, setPortfolioImages] = useState([]);
+  const [portfolioNote, setPortfolioNote] = useState("");
+  const [portfolioStatus, setPortfolioStatus] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -763,12 +781,104 @@ export default function ScreeningRoomPage() {
       transcriptListRef.current.scrollTop = transcriptListRef.current.scrollHeight;
     }
   }, [visibleTranscript]);
+
+  useEffect(() => {
+    if (session?.self_ratings) {
+      setSelfRatings(session.self_ratings);
+    }
+  }, [session?.id, session?.self_ratings]);
+
+  useEffect(() => {
+    const domain = detectDomainFromText(workerDraft.specialization);
+    const suggested = ASSIGNMENT_TEMPLATES[domain] ?? defaultAssignment;
+    const isAuto = !assignmentTouchedRef.current;
+    if (isAuto && suggested !== assignment) {
+      setAssignment(suggested);
+      lastAutoAssignmentRef.current = suggested;
+    }
+  }, [workerDraft.specialization]);
+
+  useEffect(() => {
+    if (!selectedWorkerId) return;
+    const worker = workers.find((w) => w.id === selectedWorkerId);
+    if (!worker) return;
+    const domain = detectDomainFromText(worker.specialization);
+    const suggested = ASSIGNMENT_TEMPLATES[domain] ?? defaultAssignment;
+    const isAuto = !assignmentTouchedRef.current;
+    if (isAuto && suggested !== assignment) {
+      setAssignment(suggested);
+      lastAutoAssignmentRef.current = suggested;
+    }
+  }, [selectedWorkerId, workers]);
   const resetIntegrityState = () => {
     setIntegrityWarningSeconds(0); setIntegrityPaused(false); setIntegrityPauseReason(null);
     setIntegrityReady(false); setIntegrityError("");
     multifaceDeadlineRef.current = null; faceAbsentActiveRef.current = false;
     baselineSignatureRef.current = null; faceDriftFramesRef.current = 0;
     faceChangeLatchedRef.current = false; lastIntegrityEventAtRef.current = {};
+  };
+
+  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const handlePriorWorkFiles = async (files) => {
+    if (!files?.length) return;
+    const list = Array.from(files).slice(0, 3);
+    const urls = await Promise.all(list.map(fileToDataUrl));
+    setPriorWorkImages(urls);
+    setPriorWorkStatus("");
+  };
+
+  const submitPriorWork = async () => {
+    if (!session?.id || priorWorkImages.length === 0) return;
+    try {
+      setPriorWorkStatus("Submitting...");
+      const res = await screeningApi.submitPriorWork(session.id, {
+        images: priorWorkImages,
+        note: priorWorkNote.trim(),
+      });
+      const count = res?.grounded_questions?.length ?? 0;
+      setPriorWorkStatus(copy.prior_work_done(count));
+    } catch (err) {
+      setPriorWorkStatus("Upload failed. Please try again.");
+    }
+  };
+
+  const handlePortfolioFiles = async (files) => {
+    if (!files?.length) return;
+    const list = Array.from(files).slice(0, 8);
+    const urls = await Promise.all(list.map(fileToDataUrl));
+    setPortfolioImages(urls);
+    setPortfolioStatus("");
+  };
+
+  const submitPortfolio = async () => {
+    if (!session?.id || portfolioImages.length === 0) return;
+    try {
+      setPortfolioStatus("Submitting...");
+      const res = await screeningApi.submitPortfolioEnrichment(session.id, {
+        images: portfolioImages,
+        note: portfolioNote.trim(),
+      });
+      setPortfolioStatus(copy.portfolio_done(res?.portfolio_enrichment?.length ?? 0));
+    } catch {
+      setPortfolioStatus("Upload failed. Please try again.");
+    }
+  };
+
+  const saveSelfRatings = async () => {
+    if (!session?.id) return;
+    try {
+      const res = await screeningApi.setSelfRatings(session.id, { ratings: selfRatings });
+      setSelfRatings(res?.self_ratings || selfRatings);
+      setSelfRatingStatus(copy.self_rate_done);
+    } catch {
+      setSelfRatingStatus("Failed to save self-ratings.");
+    }
   };
 
   useEffect(() => {
@@ -927,19 +1037,6 @@ export default function ScreeningRoomPage() {
 
   const loadWorkers = async () => { try { setWorkers(await screeningApi.listWorkers()); } catch { toast.error("Unable to load workers."); } };
 
-  useEffect(() => {
-    if (!selectedWorkerId) return;
-    const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId);
-    if (!selectedWorker) return;
-    setWorkerDraft((prev) => ({
-      ...prev,
-      name: selectedWorker.name || prev.name,
-      specialization: selectedWorker.specialization || prev.specialization,
-      experience_years: selectedWorker.experience_years ?? prev.experience_years,
-      phone_number: selectedWorker.phone_number || prev.phone_number,
-    }));
-  }, [selectedWorkerId, workers]);
-
   const setupCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -971,48 +1068,11 @@ export default function ScreeningRoomPage() {
     if (!assignment.trim()) { toast.error("Please add assignment details."); return; }
     setIsSubmitting(true);
     try {
-      let selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) || null;
-
-      if (interviewMode === "call") {
-        const phoneNumber = workerDraft.phone_number?.trim() || selectedWorker?.phone_number || "";
-        if (!phoneNumber) { toast.error("Add the worker phone number to start the call."); return; }
-
-        const callPayload = {
-          phone_number: phoneNumber,
-          assignment: assignment.trim(),
-          worker_name: selectedWorker?.name || workerDraft.name.trim() || undefined,
-          specialization: selectedWorker?.specialization || workerDraft.specialization.trim() || undefined,
-          experience_years: selectedWorker?.experience_years ?? (Number(workerDraft.experience_years) || 0),
-        };
-        const started = await screeningApi.startTwilioCall(callPayload);
-        resetIntegrityState();
-        setSession(started.session);
-        setIntegrityLog(started.session.integrity_log || null);
-        setCurrentQuestion(started.first_question);
-        setLiveScore(started.session.live_score);
-        setTranscript(started.session.transcript || []);
-        setSessionDone(false);
-        setSetupOpen(false);
-        setCurrentPhase(started.session.current_phase || "intro");
-        setShowTextFallback(false);
-        setTextFallbackInput("");
-        toast.success(`Call queued${started.call?.sid ? `: ${started.call.sid}` : "."}`);
-        return;
-      }
-
       let workerId = selectedWorkerId;
       if (!workerId) {
-        if (!workerDraft.name.trim()) { toast.error("Select a worker or add worker name."); return; }
-        const created = await screeningApi.createWorker({
-          name: workerDraft.name.trim(),
-          specialization: workerDraft.specialization.trim(),
-          experience_years: Number(workerDraft.experience_years) || 0,
-          phone_number: workerDraft.phone_number?.trim() || undefined,
-        });
-        workerId = created.id;
-        selectedWorker = created;
-        setSelectedWorkerId(created.id);
-        setWorkers(p => [created, ...p]);
+        if (!workerDraft.name.trim()) { toast.error("Select a worker or add worker name."); setIsSubmitting(false); return; }
+        const created = await screeningApi.createWorker({ name: workerDraft.name.trim(), specialization: workerDraft.specialization.trim(), experience_years: Number(workerDraft.experience_years) || 0 });
+        workerId = created.id; setSelectedWorkerId(created.id); setWorkers(p => [created, ...p]);
       }
       const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() }, locale);
       resetIntegrityState();
@@ -1412,6 +1472,11 @@ export default function ScreeningRoomPage() {
                 <p style={{ fontSize: "clamp(13px,1.6vw,15px)", color: "#71675d", lineHeight: 1.75, margin: 0, minHeight: 42 }}>
                   {currentQuestion || (session ? copy.waiting_ai : copy.setup_to_begin)}
                 </p>
+                {session && (
+                  <p style={{ margin: "8px 0 0", fontSize: 11, color: "#64748b" }}>
+                    {session.phase0_completed ? "Phase 0 intake complete" : "Phase 0 intake in progress"}
+                  </p>
+                )}
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1444,7 +1509,130 @@ export default function ScreeningRoomPage() {
               </div>
             </div>
 
-                        <div className="srp-voice-area" style={{
+            {isSessionLive && (
+              <div style={{
+                padding: "12px 14px",
+                borderTop: "1px solid rgba(35,49,79,0.08)",
+                background: "#f1f5f9",
+                flexShrink: 0,
+              }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
+                  {copy.self_rate_title}
+                </p>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                  {Object.entries(selfRatings || {}).map(([key, value]) => (
+                    <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "#334155" }}>
+                      <span>{key}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        step={0.5}
+                        value={value}
+                        onChange={(e) => setSelfRatings((prev) => ({ ...prev, [key]: Number(e.target.value) || 1 }))}
+                        style={{ width: 56, ...inputBase, fontSize: 11, padding: "4px 6px" }}
+                      />
+                    </label>
+                  ))}
+                  <button onClick={saveSelfRatings} style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px" }}>
+                    {copy.self_rate_send}
+                  </button>
+                </div>
+                {selfRatingStatus && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{selfRatingStatus}</p>}
+              </div>
+            )}
+
+            {isSessionLive && (
+              <div style={{
+                padding: "12px 14px",
+                borderTop: "1px solid rgba(35,49,79,0.08)",
+                background: "#f8fafc",
+                flexShrink: 0,
+              }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
+                  {copy.prior_work_title}
+                </p>
+                <p style={{ margin: "4px 0 8px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                  {copy.prior_work_sub}
+                </p>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <label style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px", cursor: "pointer" }}>
+                    {copy.prior_work_upload}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(e) => handlePriorWorkFiles(e.target.files)}
+                    />
+                  </label>
+                  <input
+                    value={priorWorkNote}
+                    onChange={(e) => setPriorWorkNote(e.target.value)}
+                    placeholder={copy.prior_work_note_ph}
+                    style={{ ...inputBase, minWidth: 220, fontSize: 12 }}
+                  />
+                  <button
+                    onClick={submitPriorWork}
+                    disabled={!priorWorkImages.length}
+                    style={{
+                      ...iconBtn(false, "#3b82f6"),
+                      padding: "6px 12px",
+                      opacity: priorWorkImages.length ? 1 : 0.5,
+                      cursor: priorWorkImages.length ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {copy.prior_work_send}
+                  </button>
+                </div>
+                {priorWorkStatus && (
+                  <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{priorWorkStatus}</p>
+                )}
+              </div>
+            )}
+
+            {isSessionLive && (
+              <div style={{
+                padding: "12px 14px",
+                borderTop: "1px solid rgba(35,49,79,0.08)",
+                background: "#f8fafc",
+                flexShrink: 0,
+              }}>
+                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
+                  {copy.portfolio_title}
+                </p>
+                <p style={{ margin: "4px 0 8px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                  {copy.portfolio_sub}
+                </p>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <label style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px", cursor: "pointer" }}>
+                    {copy.prior_work_upload}
+                    <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handlePortfolioFiles(e.target.files)} />
+                  </label>
+                  <input
+                    value={portfolioNote}
+                    onChange={(e) => setPortfolioNote(e.target.value)}
+                    placeholder={copy.prior_work_note_ph}
+                    style={{ ...inputBase, minWidth: 220, fontSize: 12 }}
+                  />
+                  <button
+                    onClick={submitPortfolio}
+                    disabled={!portfolioImages.length}
+                    style={{
+                      ...iconBtn(false, "#3b82f6"),
+                      padding: "6px 12px",
+                      opacity: portfolioImages.length ? 1 : 0.5,
+                      cursor: portfolioImages.length ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    {copy.portfolio_send}
+                  </button>
+                </div>
+                {portfolioStatus && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{portfolioStatus}</p>}
+              </div>
+            )}
+
+            <div className="srp-voice-area" style={{
               padding: "12px 14px",
               borderTop: "1px solid rgba(35,49,79,0.08)",
               background: "#ffffff",
@@ -1741,8 +1929,11 @@ export default function ScreeningRoomPage() {
         open={setupOpen} onClose={() => setSetupOpen(false)}
         workers={workers} selectedWorkerId={selectedWorkerId} setSelectedWorkerId={setSelectedWorkerId}
         workerDraft={workerDraft} setWorkerDraft={setWorkerDraft}
-        assignment={assignment} setAssignment={setAssignment}
-        interviewMode={interviewMode} setInterviewMode={setInterviewMode}
+        assignment={assignment}
+        onAssignmentChange={(value) => {
+          assignmentTouchedRef.current = true;
+          setAssignment(value);
+        }}
         onStart={startLiveSession} isSubmitting={isSubmitting} session={session}
       />
 
@@ -1750,13 +1941,3 @@ export default function ScreeningRoomPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-

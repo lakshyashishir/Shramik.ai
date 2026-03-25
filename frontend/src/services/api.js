@@ -20,6 +20,12 @@ export const screeningApi = {
     (await client.post(`/sessions/${sessionId}/turn?locale=${locale}`, payload)).data,
   captureSnapshot: async (sessionId, payload) =>
     (await client.post(`/sessions/${sessionId}/snapshot`, payload)).data,
+  submitPriorWork: async (sessionId, payload) =>
+    (await client.post(`/sessions/${sessionId}/prior-work-media`, payload)).data,
+  setSelfRatings: async (sessionId, payload) =>
+    (await client.post(`/sessions/${sessionId}/self-ratings`, payload)).data,
+  submitPortfolioEnrichment: async (sessionId, payload) =>
+    (await client.post(`/sessions/${sessionId}/portfolio-enrichment`, payload)).data,
   sendIntegrityEvent: async (sessionId, payload) =>
     (await client.post(`/sessions/${sessionId}/integrity/event`, payload)).data,
   completeSession: async (sessionId, locale = "en") =>

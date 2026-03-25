@@ -38,6 +38,18 @@ const RUBRIC_LABELS = {
     technical_knowledge:       "Technical",
     fabric_material_knowledge: "Fabric",
     communication_confidence:  "Comms",
+    work_output_quality:       "Output",
+    technique_process_knowledge: "Process",
+    tool_product_knowledge:    "Tools",
+    client_assessment:         "Client",
+    joint_assembly_quality:    "Joint",
+    tool_handling:             "Tools",
+    material_knowledge:        "Material",
+    measurement_precision:     "Precision",
+    safety_protocol:           "Safety",
+    circuit_load_knowledge:    "Circuit",
+    circuit_diagram_quality:   "Diagram",
+    tool_instrument_knowledge: "Instruments",
   },
   hi: {
     stitch_quality:            "सिलाई",
@@ -45,8 +57,35 @@ const RUBRIC_LABELS = {
     technical_knowledge:       "तकनीक",
     fabric_material_knowledge: "कपड़ा",
     communication_confidence:  "संवाद",
+    work_output_quality:       "गुणवत्ता",
+    technique_process_knowledge: "प्रक्रिया",
+    tool_product_knowledge:    "टूल्स",
+    client_assessment:         "क्लाइंट",
+    joint_assembly_quality:    "जोड़",
+    tool_handling:             "औज़ार",
+    material_knowledge:        "सामग्री",
+    measurement_precision:     "नाप-तोल",
+    safety_protocol:           "सुरक्षा",
+    circuit_load_knowledge:    "सर्किट",
+    circuit_diagram_quality:   "डायग्राम",
+    tool_instrument_knowledge: "उपकरण",
   },
 };
+
+const RUBRIC_GROUPS = [
+  ["stitch_quality", "machine_familiarity", "technical_knowledge", "fabric_material_knowledge", "communication_confidence"],
+  ["work_output_quality", "technique_process_knowledge", "tool_product_knowledge", "client_assessment", "communication_confidence"],
+  ["joint_assembly_quality", "tool_handling", "material_knowledge", "measurement_precision", "communication_confidence"],
+  ["safety_protocol", "circuit_load_knowledge", "circuit_diagram_quality", "tool_instrument_knowledge", "communication_confidence"],
+];
+
+function resolveRubricOrder(rubricScores) {
+  const keys = Object.keys(rubricScores || {}).filter((k) => k !== "integrity_compliance");
+  for (const group of RUBRIC_GROUPS) {
+    if (group.every((k) => keys.includes(k))) return group;
+  }
+  return keys.length ? keys : RUBRIC_GROUPS[0];
+}
 
 /* ─── Karma ring (SVG) ───────────────────────────────────────── */
 function KarmaRing({ karma, color }) {
@@ -126,8 +165,9 @@ function TierBadge({ targetTier, locale }) {
 /* ─── Radar chart ────────────────────────────────────────────── */
 function RubricRadar({ rubricScores, locale }) {
   const labels = RUBRIC_LABELS[locale] ?? RUBRIC_LABELS.en;
-  const data = Object.entries(labels).map(([key, label]) => ({
-    subject: label,
+  const order = resolveRubricOrder(rubricScores);
+  const data = order.map((key) => ({
+    subject: labels[key] ?? key,
     score: Math.round(rubricScores?.[key] ?? 0),
     fullMark: 100,
   }));
@@ -365,10 +405,10 @@ export default function PassportCard({ session, worker, channel = "web", photoUr
 
         {/* Rubric bars */}
         <div style={{ marginBottom: 18, display: "flex", flexDirection: "column", gap: 7 }}>
-          {Object.entries(RUBRIC_LABELS.en).map(([key]) => {
+          {resolveRubricOrder(rubric).map((key) => {
             const val = Math.round(rubric[key] ?? 0);
             const barColor = val >= 70 ? "#22c55e" : val >= 45 ? "#f59e0b" : "#ef4444";
-            const lbl = (RUBRIC_LABELS[locale] ?? RUBRIC_LABELS.en)[key];
+            const lbl = (RUBRIC_LABELS[locale] ?? RUBRIC_LABELS.en)[key] ?? key;
             return (
               <div key={key}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>

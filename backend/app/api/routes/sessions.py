@@ -1,25 +1,61 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from app.agents.screening_logic import build_snapshot_feedback
+from app.agents.screening_logic import (
+    build_default_self_ratings,
+    build_portfolio_enrichment,
+    build_prior_work_media,
+    build_snapshot_feedback,
+    classify_trade_with_confidence,
+    choose_opening_question,
+    finalize_session,
+    init_phase0_profile,
+    phase0_missing_fields,
+    process_phase0_turn,
+    run_agent_turn,
+)
 from app.models import (
     CompleteResponse,
     IntegrityEvent,
     IntegrityEventRequest,
     IntegrityEventResponse,
     IntegrityLog,
+    PortfolioEnrichmentRequest,
+    PortfolioEnrichmentResponse,
+    PortfolioItem,
+    PriorWorkItem,
+    PriorWorkMediaRequest,
+    PriorWorkMediaResponse,
+    SelfRatingsRequest,
+    SelfRatingsResponse,
     Session,
     SessionStartRequest,
     SessionStartResponse,
     SnapshotRequest,
     SnapshotResponse,
+    TranscriptItem,
     TurnRequest,
     TurnResponse,
+    new_id,
     utc_now_iso,
 )
-from app.services.session_runtime import append_turn, complete_session as complete_runtime_session, create_session, require_session
-from app.services.store import sessions, workers
+from app.services.store import (
+    get_session as get_session_store,
+    get_worker,
+    list_completed_sessions,
+    list_live_sessions,
+    save_session,
+    save_worker,
+)
 
 router = APIRouter(tags=["sessions"])
+ASSIGNMENT_TEMPLATES = {
+    "garment_worker": "Stitch a clean straight seam with consistent margin and explain your quality checks.",
+    "beauty_professional": "Show a recent beauty service output (hair/mehendi/nail) and explain your process steps.",
+    "carpenter": "Make a simple joint on scrap wood (butt/half-lap) and explain your tool and marking process.",
+    "electrician": "Draw a simple 2-way switch circuit for one lamp with L/N/E and explain the logic.",
+    "domain_unknown": "Complete registration questions about your work preferences and availability.",
+}
+DEFAULT_ASSIGNMENT = ASSIGNMENT_TEMPLATES["garment_worker"]
 
 
 def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
@@ -34,48 +70,148 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
 def start_session(payload: SessionStartRequest, locale: str = Query("en")) -> SessionStartResponse:
-    worker = workers.get(payload.worker_id)
+    worker = get_worker(payload.worker_id)
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
-    session, first_question = create_session(
-        worker,
+    domain, domain_confidence, detection_method = classify_trade_with_confidence(
+        worker.specialization,
         payload.assignment,
-        interview_mode=payload.interview_mode,
-        locale=locale,
-        call_phone_number=payload.call_phone_number,
     )
+    assignment = payload.assignment.strip()
+    if not assignment or assignment.lower() == DEFAULT_ASSIGNMENT.lower():
+        assignment = ASSIGNMENT_TEMPLATES.get(domain, DEFAULT_ASSIGNMENT)
+
+    first_question = choose_opening_question(worker.name, assignment, locale, domain)
+    phase0_profile = init_phase0_profile(worker.name, worker.specialization)
+    phase0_completed = len(phase0_missing_fields(phase0_profile)) == 0
+
+    session = Session(
+        id=new_id("session"),
+        worker_id=worker.id,
+        worker_name=worker.name,
+        assignment=assignment,
+        domain=domain,
+        domain_confidence=domain_confidence,
+        domain_detection_method=detection_method,
+        status="live",
+        started_at=utc_now_iso(),
+        live_score=50.0,
+        recommendation="pending",
+        summary="Session in progress",
+        transcript=[TranscriptItem(speaker="ai", text=first_question, timestamp=utc_now_iso())],
+        snapshot_feedback=[],
+        rubric_scores={},
+        self_ratings=build_default_self_ratings(domain),
+        prior_work_media=[],
+        grounded_questions=[],
+        self_awareness_profile={},
+        assessment_confidence={},
+        phase0_profile=phase0_profile,
+        phase0_completed=phase0_completed,
+        portfolio_enrichment=[],
+    )
+    save_session(session)
     return SessionStartResponse(session=session, first_question=first_question)
 
 
 @router.post("/sessions/{session_id}/turn", response_model=TurnResponse)
 def session_turn(session_id: str, payload: TurnRequest, locale: str = Query("en")) -> TurnResponse:
-    _, response = append_turn(
-        session_id,
-        payload.worker_text,
-        locale=locale,
-        rubric_tag=payload.rubric_tag,
-        acoustic_confidence=payload.acoustic_confidence,
-    )
-    return response
-
-
-@router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
-def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> SnapshotResponse:
-    session = sessions.get(session_id)
+    session = get_session_store(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
-    snapshot = build_snapshot_feedback(payload.note, session.live_score, payload.image_data)
+    result = process_phase0_turn(session, payload.worker_text, locale) if not session.phase0_completed else run_agent_turn(session, payload.worker_text, locale)
+
+    new_score = round(max(0.0, min(100.0, session.live_score + result["score_delta"])), 2)
+    updated = session.model_copy(
+        update={
+            "transcript": [
+                *session.transcript,
+                TranscriptItem(
+                    speaker="worker",
+                    text=payload.worker_text.strip(),
+                    timestamp=utc_now_iso(),
+                    rubric_tag=payload.rubric_tag,
+                    acoustic_confidence=payload.acoustic_confidence,
+                ),
+                TranscriptItem(
+                    speaker="ai",
+                    text=result["ai_reply"],
+                    timestamp=utc_now_iso(),
+                    rubric_tag=result["rubric_tag"],
+                ),
+            ],
+            "current_phase": result["phase"],
+            "live_score": new_score,
+            "phase0_profile": result.get("phase0_profile", session.phase0_profile),
+            "phase0_completed": result.get("phase0_completed", session.phase0_completed),
+        }
+    )
+
+    if updated.phase0_completed:
+        profile = updated.phase0_profile or {}
+        worker = get_worker(updated.worker_id)
+        if worker:
+            years = profile.get("yearsExp")
+            if years is not None:
+                try:
+                    save_worker(worker.model_copy(update={"experience_years": int(years)}))
+                except (TypeError, ValueError):
+                    pass
+
+    save_session(updated)
+    return TurnResponse(
+        ai_question=result["ai_reply"],
+        coach_note="",
+        live_score=updated.live_score,
+        rubric_tag=result["rubric_tag"],
+        phase=result["phase"],
+    )
+
+
+@router.post("/sessions/{session_id}/self-ratings", response_model=SelfRatingsResponse)
+def set_self_ratings(session_id: str, payload: SelfRatingsRequest) -> SelfRatingsResponse:
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status != "live":
+        raise HTTPException(status_code=400, detail="Session already completed")
+
+    cleaned: dict[str, float] = {}
+    valid_keys = set(session.self_ratings.keys())
+    for key, value in payload.ratings.items():
+        if key not in valid_keys:
+            continue
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            continue
+        cleaned[key] = max(1.0, min(5.0, round(v, 1)))
+
+    updated = session.model_copy(update={"self_ratings": {**session.self_ratings, **cleaned}})
+    save_session(updated)
+    return SelfRatingsResponse(self_ratings=updated.self_ratings)
+
+
+@router.post("/sessions/{session_id}/snapshot", response_model=SnapshotResponse)
+def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> SnapshotResponse:
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status != "live":
+        raise HTTPException(status_code=400, detail="Session already completed")
+
+    snapshot = build_snapshot_feedback(payload.note, session.live_score, payload.image_data, session.domain)
     updated = session.model_copy(
         update={
             "snapshot_feedback": [*session.snapshot_feedback, snapshot],
             "live_score": round((session.live_score * 0.85) + (snapshot.quality_score * 0.15), 2),
         }
     )
-    sessions[session_id] = updated
+    save_session(updated)
 
     return SnapshotResponse(
         quality_score=snapshot.quality_score,
@@ -86,9 +222,63 @@ def add_snapshot_feedback(session_id: str, payload: SnapshotRequest) -> Snapshot
     )
 
 
+@router.post("/sessions/{session_id}/prior-work-media", response_model=PriorWorkMediaResponse)
+def add_prior_work_media(session_id: str, payload: PriorWorkMediaRequest) -> PriorWorkMediaResponse:
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status != "live":
+        raise HTTPException(status_code=400, detail="Session already completed")
+
+    media_items, grounded_questions = build_prior_work_media(payload.images, payload.note, session.domain)
+    new_items = [
+        PriorWorkItem(
+            captured_at=utc_now_iso(),
+            note=payload.note,
+            vision_summary=item["summary"],
+            relevance_flag=item["relevance"],
+            vision_confidence=item["vision_confidence"],
+        )
+        for item in media_items
+    ]
+
+    updated = session.model_copy(
+        update={
+            "prior_work_media": [*session.prior_work_media, *new_items],
+            "grounded_questions": grounded_questions,
+        }
+    )
+    save_session(updated)
+    return PriorWorkMediaResponse(
+        prior_work_media=updated.prior_work_media,
+        grounded_questions=updated.grounded_questions,
+    )
+
+
+@router.post("/sessions/{session_id}/portfolio-enrichment", response_model=PortfolioEnrichmentResponse)
+def add_portfolio_enrichment(session_id: str, payload: PortfolioEnrichmentRequest) -> PortfolioEnrichmentResponse:
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    items = build_portfolio_enrichment(payload.images, payload.note, session.domain)
+    added = [
+        PortfolioItem(
+            captured_at=utc_now_iso(),
+            note=payload.note,
+            complexity=item["complexity"],
+            vision_summary=item["summary"],
+        )
+        for item in items
+    ]
+    updated = session.model_copy(update={"portfolio_enrichment": [*session.portfolio_enrichment, *added][:8]})
+    save_session(updated)
+    return PortfolioEnrichmentResponse(portfolio_enrichment=updated.portfolio_enrichment)
+
+
 @router.post("/sessions/{session_id}/integrity/event", response_model=IntegrityEventResponse)
 def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> IntegrityEventResponse:
-    session = sessions.get(session_id)
+    session = get_session_store(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
@@ -143,7 +333,7 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
             "integrity_events": [*session.integrity_events, next_event][-200:],
         }
     )
-    sessions[session_id] = updated
+    save_session(updated)
     return IntegrityEventResponse(
         integrity_log=next_log,
         session_paused=next_log.session_paused,
@@ -153,20 +343,30 @@ def add_integrity_event(session_id: str, payload: IntegrityEventRequest) -> Inte
 
 @router.post("/sessions/{session_id}/complete", response_model=CompleteResponse)
 def complete_session(session_id: str, locale: str = Query("en")) -> CompleteResponse:
-    completed = complete_runtime_session(session_id, locale=locale)
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.status == "completed":
+        return CompleteResponse(session=session)
+
+    completed = finalize_session(session, locale)
+    save_session(completed)
     return CompleteResponse(session=completed)
 
 
 @router.get("/session/{session_id}", response_model=Session)
-def get_session(session_id: str) -> Session:
-    return require_session(session_id)
+def get_session_route(session_id: str) -> Session:
+    session = get_session_store(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
 
 
 @router.get("/sessions/live", response_model=list[Session])
 def live_sessions() -> list[Session]:
-    return [s for s in sessions.values() if s.status == "live"]
+    return list_live_sessions()
 
 
 @router.get("/sessions/reports", response_model=list[Session])
 def completed_sessions() -> list[Session]:
-    return [s for s in sessions.values() if s.status == "completed"]
+    return list_completed_sessions()

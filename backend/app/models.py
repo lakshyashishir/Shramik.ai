@@ -9,7 +9,6 @@ class WorkerCreate(BaseModel):
     name: str = Field(min_length=2, max_length=80)
     specialization: str = Field(min_length=2, max_length=120)
     experience_years: int = Field(ge=0, le=50)
-    phone_number: Optional[str] = Field(default=None, max_length=20)
 
 
 class Worker(BaseModel):
@@ -19,7 +18,6 @@ class Worker(BaseModel):
     name: str
     specialization: str
     experience_years: int
-    phone_number: Optional[str] = None
     created_at: str
 
 
@@ -41,6 +39,26 @@ class SnapshotFeedback(BaseModel):
     feedback: str
     focus_areas: List[str]
     note: str
+    vision_confidence: Optional[float] = None
+
+
+class PriorWorkItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    captured_at: str
+    note: str
+    vision_summary: str
+    relevance_flag: Literal["relevant", "unclear", "irrelevant"] = "unclear"
+    vision_confidence: Optional[float] = None
+
+
+class PortfolioItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    captured_at: str
+    note: str
+    complexity: Literal["entry", "standard", "skilled", "complex"] = "standard"
+    vision_summary: str
 
 
 class IntegrityEvent(BaseModel):
@@ -83,6 +101,9 @@ class Session(BaseModel):
     worker_id: str
     worker_name: str
     assignment: str
+    domain: Optional[str] = None
+    domain_confidence: Optional[float] = None
+    domain_detection_method: Optional[str] = None
     status: Literal["live", "completed"]
     started_at: str
     ended_at: Optional[str] = None
@@ -96,25 +117,45 @@ class Session(BaseModel):
     integrity_events: List[IntegrityEvent] = Field(default_factory=list)
     current_phase: str = "intro"
     self_ratings: Dict[str, float] = Field(default_factory=dict)
-    interview_mode: Literal["web", "call", "whatsapp", "offline"] = "web"
-    call_provider: Optional[Literal["twilio"]] = None
-    call_phone_number: Optional[str] = None
-    call_duration_seconds: Optional[int] = None
-    external_call_id: Optional[str] = None
-    external_call_status: Optional[str] = None
-    latest_call_recording_url: Optional[str] = None
+    prior_work_media: List[PriorWorkItem] = Field(default_factory=list)
+    grounded_questions: List[str] = Field(default_factory=list)
+    self_awareness_profile: Dict[str, Any] = Field(default_factory=dict)
+    assessment_confidence: Dict[str, Any] = Field(default_factory=dict)
+    phase0_profile: Dict[str, Any] = Field(default_factory=dict)
+    phase0_completed: bool = False
+    portfolio_enrichment: List[PortfolioItem] = Field(default_factory=list)
+
+
+class PriorWorkMediaRequest(BaseModel):
+    images: List[str] = Field(min_length=1, max_length=3)
+    note: str = Field(default="", max_length=280)
+
+
+class PriorWorkMediaResponse(BaseModel):
+    prior_work_media: List[PriorWorkItem]
+    grounded_questions: List[str]
+
+
+class SelfRatingsRequest(BaseModel):
+    ratings: Dict[str, float]
+
+
+class SelfRatingsResponse(BaseModel):
+    self_ratings: Dict[str, float]
+
+
+class PortfolioEnrichmentRequest(BaseModel):
+    images: List[str] = Field(min_length=1, max_length=8)
+    note: str = Field(default="", max_length=280)
+
+
+class PortfolioEnrichmentResponse(BaseModel):
+    portfolio_enrichment: List[PortfolioItem]
 
 
 class SessionStartRequest(BaseModel):
     worker_id: str
     assignment: str = Field(min_length=8, max_length=400)
-    interview_mode: Literal["web", "call", "whatsapp", "offline"] = "web"
-    call_phone_number: Optional[str] = Field(default=None, max_length=20)
-
-
-class WorkerVoiceOnboardRequest(BaseModel):
-    transcript: str = Field(min_length=3, max_length=600)
-    phone_number: Optional[str] = Field(default=None, max_length=20)
 
 
 class SessionStartResponse(BaseModel):
