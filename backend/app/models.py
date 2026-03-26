@@ -132,6 +132,7 @@ class Session(BaseModel):
     external_call_status: Optional[str] = None
     call_duration_seconds: Optional[int] = None
     latest_call_recording_url: Optional[str] = None
+    labor_pool_profile: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PriorWorkMediaRequest(BaseModel):
