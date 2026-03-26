@@ -12,6 +12,7 @@ class WorkerDB(Base):
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     specialization: Mapped[str] = mapped_column(String(120), nullable=False)
     experience_years: Mapped[int] = mapped_column(Integer, nullable=False)
+    phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -43,3 +44,10 @@ class SessionDB(Base):
     integrity_events: Mapped[dict] = mapped_column(JSON, default=list)
     current_phase: Mapped[str] = mapped_column(String(50), default="intro")
     self_ratings: Mapped[dict] = mapped_column(JSON, default=dict)
+    interview_mode: Mapped[str] = mapped_column(String(20), default="web", nullable=True)
+    call_provider: Mapped[str] = mapped_column(String(30), nullable=True)
+    call_phone_number: Mapped[str] = mapped_column(String(30), nullable=True)
+    external_call_id: Mapped[str] = mapped_column(String(100), nullable=True)
+    external_call_status: Mapped[str] = mapped_column(String(30), nullable=True)
+    call_duration_seconds: Mapped[int] = mapped_column(Integer, nullable=True)
+    latest_call_recording_url: Mapped[str] = mapped_column(Text, nullable=True)

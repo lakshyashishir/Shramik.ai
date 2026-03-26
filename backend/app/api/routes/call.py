@@ -2,11 +2,13 @@ from html import escape
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.database import get_db
 from app.integrations.phone import normalize_phone_number
 from app.integrations.twilio_client import (
     TwilioConfigError,
@@ -15,8 +17,9 @@ from app.integrations.twilio_client import (
     start_outbound_call,
 )
 from app.models import CompleteResponse, Session, Worker, new_id, utc_now_iso
+from app.services import store
 from app.services.session_runtime import complete_session, create_session, require_session, update_session
-from app.services.store import call_session_index, sessions, workers
+from app.services.store import call_session_index
 
 router = APIRouter(tags=["call"])
 
@@ -35,15 +38,15 @@ class TwilioStatusResponse(BaseModel):
     status: Optional[str] = None
 
 
-def _find_worker_by_phone(phone_number: str) -> Optional[Worker]:
+async def _find_worker_by_phone(db: AsyncSession, phone_number: str) -> Optional[Worker]:
     normalized = normalize_phone_number(phone_number)
-    for worker in workers.values():
-        if normalize_phone_number(worker.phone_number or "") == normalized:
-            return worker
-    return None
+    if not normalized:
+        return None
+    return await store.get_worker_by_phone(db, normalized)
 
 
-def _upsert_worker(
+async def _upsert_worker(
+    db: AsyncSession,
     *,
     phone_number: Optional[str],
     worker_name: Optional[str],
@@ -51,7 +54,7 @@ def _upsert_worker(
     experience_years: int,
 ) -> Worker:
     normalized_phone = normalize_phone_number(phone_number)
-    existing = _find_worker_by_phone(normalized_phone or "") if normalized_phone else None
+    existing = await _find_worker_by_phone(db, normalized_phone or "") if normalized_phone else None
     if existing:
         updates = {}
         if worker_name:
@@ -61,7 +64,7 @@ def _upsert_worker(
         updates["experience_years"] = max(existing.experience_years, experience_years)
         if updates:
             updated = existing.model_copy(update=updates)
-            workers[existing.id] = updated
+            await store.update_worker(db, updated)
             return updated
         return existing
 
@@ -73,7 +76,7 @@ def _upsert_worker(
         phone_number=normalized_phone,
         created_at=utc_now_iso(),
     )
-    workers[worker.id] = worker
+    await store.create_worker(db, worker)
     return worker
 
 
@@ -94,15 +97,20 @@ def _build_greeting_text(session: Session) -> str:
 
 
 @router.post("/calls/twilio/start")
-async def start_twilio_screening_call(payload: TwilioCallStartRequest):
-    worker = _upsert_worker(
+async def start_twilio_screening_call(
+    payload: TwilioCallStartRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    worker = await _upsert_worker(
+        db,
         phone_number=payload.phone_number,
         worker_name=payload.worker_name,
         specialization=payload.specialization,
         experience_years=payload.experience_years,
     )
     assignment = (payload.assignment or settings.twilio_default_assignment).strip()
-    session, first_question = create_session(
+    session, first_question = await create_session(
+        db,
         worker,
         assignment,
         interview_mode="call",
@@ -122,7 +130,8 @@ async def start_twilio_screening_call(payload: TwilioCallStartRequest):
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"Twilio call start failed: {exc}") from exc
 
-    session = update_session(
+    session = await update_session(
+        db,
         session.id,
         external_call_id=outbound.get("sid"),
         external_call_status=outbound.get("status") or "queued",
@@ -143,7 +152,10 @@ async def start_twilio_screening_call(payload: TwilioCallStartRequest):
 
 
 @router.api_route("/calls/twilio/twiml", methods=["GET", "POST"])
-async def twilio_twiml(request: Request) -> Response:
+async def twilio_twiml(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
     query = dict(request.query_params)
     body = dict(await request.form()) if request.method == "POST" else {}
     payload = {**query, **body}
@@ -151,29 +163,26 @@ async def twilio_twiml(request: Request) -> Response:
     if not session_id:
         raise HTTPException(status_code=400, detail="session_id is required")
 
-    session = require_session(str(session_id))
+    session = await require_session(db, str(session_id))
     return _twiml_response(_build_greeting_text(session))
 
 
 @router.api_route("/calls/twilio/incoming", methods=["GET", "POST"])
-async def twilio_incoming_webhook(request: Request) -> Response:
-    """
-    Incoming voice webhook used when a caller dials your Twilio number directly.
-
-    Creates a call-mode session on-the-fly and responds with TwiML that
-    speaks the phone-assessment greeting and the first interview question.
-    """
+async def twilio_incoming_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
     query = dict(request.query_params)
     body = dict(await request.form()) if request.method == "POST" else {}
     payload: dict[str, object] = {**query, **body}
 
-    # Twilio sends From (caller) + CallSid on voice webhooks.
     from_number = payload.get("From") or payload.get("from") or payload.get("Caller")
     call_sid = extract_twilio_sid(payload)
     if not from_number:
         raise HTTPException(status_code=400, detail="From number is required")
 
-    worker = _upsert_worker(
+    worker = await _upsert_worker(
+        db,
         phone_number=str(from_number),
         worker_name="श्रमिक",
         specialization=None,
@@ -181,7 +190,8 @@ async def twilio_incoming_webhook(request: Request) -> Response:
     )
 
     assignment = settings.twilio_default_assignment.strip()
-    session, _ = create_session(
+    session, _ = await create_session(
+        db,
         worker,
         assignment,
         interview_mode="call",
@@ -193,14 +203,16 @@ async def twilio_incoming_webhook(request: Request) -> Response:
     )
 
     if call_sid:
-        # Enables /calls/twilio/status to resolve the session even without session_id query params.
         call_session_index[call_sid] = session.id
 
     return _twiml_response(_build_greeting_text(session))
 
 
 @router.api_route("/calls/twilio/status", methods=["GET", "POST"], response_model=TwilioStatusResponse)
-async def twilio_status_callback(request: Request) -> TwilioStatusResponse:
+async def twilio_status_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TwilioStatusResponse:
     body = await request.form() if request.method == "POST" else {}
     payload = {**dict(request.query_params), **dict(body)}
     call_sid = extract_twilio_sid(payload)
@@ -212,7 +224,7 @@ async def twilio_status_callback(request: Request) -> TwilioStatusResponse:
     resolved_session_id = None
     if session_id:
         try:
-            require_session(str(session_id))
+            await require_session(db, str(session_id))
             resolved_session_id = str(session_id)
         except HTTPException:
             resolved_session_id = None
@@ -226,18 +238,20 @@ async def twilio_status_callback(request: Request) -> TwilioStatusResponse:
     except ValueError:
         parsed_duration = None
 
-    session = update_session(
+    current = await require_session(db, resolved_session_id)
+    session = await update_session(
+        db,
         resolved_session_id,
-        external_call_id=call_sid or require_session(resolved_session_id).external_call_id,
-        external_call_status=str(status) if status else require_session(resolved_session_id).external_call_status,
-        call_duration_seconds=parsed_duration or require_session(resolved_session_id).call_duration_seconds,
-        latest_call_recording_url=str(recording_url) if recording_url else require_session(resolved_session_id).latest_call_recording_url,
+        external_call_id=call_sid or current.external_call_id,
+        external_call_status=str(status) if status else current.external_call_status,
+        call_duration_seconds=parsed_duration or current.call_duration_seconds,
+        latest_call_recording_url=str(recording_url) if recording_url else current.latest_call_recording_url,
     )
     if call_sid:
         call_session_index[call_sid] = session.id
 
     terminal_statuses = {"completed", "busy", "failed", "no-answer", "canceled"}
     if (session.external_call_status or "").lower() in terminal_statuses and session.status == "live":
-        session = complete_session(session.id, locale="hi")
+        session = await complete_session(db, session.id, locale="hi")
 
     return TwilioStatusResponse(ok=True, session_id=session.id, status=session.external_call_status)
