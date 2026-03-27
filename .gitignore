@@ -19,3 +19,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 backend/shramik_demo.db
+shramik_local.db
+backend/shramik_local.db
+*.db

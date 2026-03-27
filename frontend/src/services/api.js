@@ -43,4 +43,16 @@ export const screeningApi = {
     (await client.post("/speech/tts", { text, language }, { responseType: "blob" })).data,
   onboardWorkerByVoice: async (payload) =>
     (await client.post("/workers/onboard", payload)).data,
+
+  // Karma + Passport
+  getWorkerKarma: async (workerId) =>
+    (await client.get(`/workers/${workerId}/karma`)).data,
+  getPassport: async (workerId) =>
+    (await client.get(`/passport/${workerId}`)).data,
+
+  // Human Review Queue
+  getReviewQueue: async () =>
+    (await client.get("/review/queue")).data,
+  submitReviewDecision: async (sessionId, payload) =>
+    (await client.post(`/review/${sessionId}/decision`, payload)).data,
 };
