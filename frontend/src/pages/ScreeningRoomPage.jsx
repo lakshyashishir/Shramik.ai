@@ -760,9 +760,6 @@ export default function ScreeningRoomPage() {
   const [selfRatings, setSelfRatings] = useState({});
   const [selfRatingStatus, setSelfRatingStatus] = useState("");
   const [selfRatingsCompleted, setSelfRatingsCompleted] = useState(false);
-  const [portfolioImages, setPortfolioImages] = useState([]);
-  const [portfolioNote, setPortfolioNote] = useState("");
-  const [portfolioStatus, setPortfolioStatus] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -910,27 +907,6 @@ export default function ScreeningRoomPage() {
     setPriorWorkStatus("");
   };
 
-  const handlePortfolioFiles = async (files) => {
-    if (!files?.length) return;
-    const list = Array.from(files).slice(0, 8);
-    const urls = await Promise.all(list.map(fileToDataUrl));
-    setPortfolioImages(urls);
-    setPortfolioStatus("");
-  };
-
-  const submitPortfolio = async () => {
-    if (!session?.id || portfolioImages.length === 0) return;
-    try {
-      setPortfolioStatus("Submitting...");
-      const res = await screeningApi.submitPortfolioEnrichment(session.id, {
-        images: portfolioImages,
-        note: portfolioNote.trim(),
-      });
-      setPortfolioStatus(copy.portfolio_done(res?.portfolio_enrichment?.length ?? 0));
-    } catch {
-      setPortfolioStatus("Upload failed. Please try again.");
-    }
-  };
 
   const saveSelfRatings = async () => {
     if (!session?.id) return;
@@ -1662,7 +1638,7 @@ export default function ScreeningRoomPage() {
               )}
             </div>
 
-            {isSessionLive && !isGeneralLaborPath && (
+            {isSessionLive && !isGeneralLaborPath && !selfRatingsCompleted && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",
@@ -1672,11 +1648,11 @@ export default function ScreeningRoomPage() {
                 <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
                   {copy.self_rate_title}
                 </p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8, marginTop: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))", gap: 8, marginTop: 8 }}>
                   {Object.entries(selfRatings || {}).map(([key, value]) => (
                     <div key={key} style={{ border: "1px solid rgba(59,130,246,0.15)", background: "#fff", borderRadius: 10, padding: 8, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#1e3a8a", lineHeight: 1.35 }}>{formatRubricLabel(key)}</p>
-                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
                         {[1, 2, 3, 4, 5].map((score) => (
                           <button
                             key={score}
@@ -1689,7 +1665,7 @@ export default function ScreeningRoomPage() {
                               background: Number(value) === score ? "rgba(59,130,246,0.18)" : "#fff",
                               color: Number(value) === score ? "#1e3a8a" : "#334155",
                               borderRadius: 999,
-                              padding: "2px 8px",
+                              padding: "2px 7px",
                               fontSize: 11,
                               fontWeight: 700,
                               cursor: "pointer",
@@ -1818,66 +1794,6 @@ export default function ScreeningRoomPage() {
               </div>
             )}
 
-            {isSessionLive && !isGeneralLaborPath && (
-              <div style={{
-                padding: "12px 14px",
-                borderTop: "1px solid rgba(35,49,79,0.08)",
-                background: "#f8fafc",
-                flexShrink: 0,
-              }}>
-                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
-                  {copy.portfolio_title}
-                </p>
-                <p style={{ margin: "4px 0 8px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                  {copy.portfolio_sub}
-                </p>
-                <div style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                  border: "1px dashed rgba(59,130,246,0.2)",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.75)",
-                  padding: 10,
-                }}>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    <label style={{ ...iconBtn(false, "#3b82f6"), borderRadius: 10, width: "auto", height: "auto", padding: "7px 10px", cursor: "pointer" }}>
-                      {copy.prior_work_upload}
-                      <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handlePortfolioFiles(e.target.files)} />
-                    </label>
-                    {!!portfolioImages.length && (
-                      <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 600 }}>
-                        {copy.prior_work_selected(portfolioImages.length)}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    value={portfolioNote}
-                    onChange={(e) => setPortfolioNote(e.target.value)}
-                    placeholder={copy.prior_work_note_ph}
-                    style={{ ...inputBase, fontSize: 12 }}
-                  />
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                    <button
-                      onClick={submitPortfolio}
-                      disabled={!portfolioImages.length}
-                      style={{
-                        ...iconBtn(false, "#3b82f6"),
-                        borderRadius: 10,
-                        width: "auto",
-                        height: "auto",
-                        padding: "7px 12px",
-                        opacity: portfolioImages.length ? 1 : 0.5,
-                        cursor: portfolioImages.length ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {copy.portfolio_send}
-                    </button>
-                  </div>
-                </div>
-                {portfolioStatus && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{portfolioStatus}</p>}
-              </div>
-            )}
 
             <div className="srp-voice-area" style={{
               padding: "12px 14px",
@@ -1887,10 +1803,21 @@ export default function ScreeningRoomPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
-                    {copy.voice_capture}
-                  </p>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
+                      {copy.voice_capture}
+                    </p>
+                    {selfRatingsCompleted && !isGeneralLaborPath && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, color: "#16a34a",
+                        background: "rgba(22,163,74,0.08)", border: "1px solid rgba(22,163,74,0.2)",
+                        borderRadius: 20, padding: "1px 7px", letterSpacing: 0.5,
+                      }}>
+                        Self-rated ✓
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
                     {requiresSelfRatings
                       ? copy.self_rate_gate_msg
                       : integrityPaused ? copy.status_paused : isListening ? copy.status_recording : isSessionLive ? copy.status_tap_mic : copy.status_start_session}
