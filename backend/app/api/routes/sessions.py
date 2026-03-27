@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import (
@@ -48,9 +49,26 @@ ASSIGNMENT_TEMPLATES = {
     "beauty_professional": "Show a recent beauty service output (hair/mehendi/nail) and explain your process steps.",
     "carpenter": "Make a simple joint on scrap wood (butt/half-lap) and explain your tool and marking process.",
     "electrician": "Draw a simple 2-way switch circuit for one lamp with L/N/E and explain the logic.",
-    "domain_unknown": "Complete registration questions about your work preferences and availability.",
+    "general_labor": "Complete behavioral registration interview for labor-pool placement.",
+    "domain_unknown": "Complete behavioral registration interview for labor-pool placement.",
 }
 DEFAULT_ASSIGNMENT = ASSIGNMENT_TEMPLATES["garment_worker"]
+
+
+class LaborPathStartRequest(BaseModel):
+    sessionId: str
+    triggerType: str = "classification_failure"
+
+
+class LaborPathTranscriptRequest(BaseModel):
+    sessionId: str
+    worker_text: str
+    rubric_tag: str | None = None
+    acoustic_confidence: float | None = None
+
+
+class LaborPathFinalizeRequest(BaseModel):
+    sessionId: str
 
 
 def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
@@ -215,6 +233,8 @@ async def add_snapshot_feedback(
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
+    if session.domain in {"general_labor", "domain_unknown"}:
+        raise HTTPException(status_code=400, detail="Snapshot task is not used for general labor path")
 
     snapshot = build_snapshot_feedback(payload.note, session.live_score, payload.image_data, session.domain)
     updated = session.model_copy(
@@ -245,6 +265,8 @@ async def add_prior_work_media(
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
+    if session.domain in {"general_labor", "domain_unknown"}:
+        raise HTTPException(status_code=400, detail="Prior work media is not required for general labor path")
 
     media_items, grounded_questions = build_prior_work_media(payload.images, payload.note, session.domain)
     new_items = [
@@ -403,3 +425,106 @@ async def live_sessions(db: AsyncSession = Depends(get_db)) -> list[Session]:
 async def completed_sessions(db: AsyncSession = Depends(get_db)) -> list[Session]:
     all_sessions = await store.get_all_sessions(db)
     return [s for s in all_sessions if s.status == "completed"]
+
+
+@router.post("/assessment/labor-path/start")
+async def labor_path_start(
+    payload: LaborPathStartRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await store.get_session(db, payload.sessionId)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    updated = session.model_copy(
+        update={
+            "domain": "general_labor",
+            "domain_detection_method": payload.triggerType,
+            "assignment": ASSIGNMENT_TEMPLATES["general_labor"],
+            "current_phase": "intro",
+        }
+    )
+    await store.update_session(db, updated)
+    return {
+        "sessionId": updated.id,
+        "triggerType": payload.triggerType,
+        "behavioralDimensions": [
+            "attitude_motivation",
+            "reliability_punctuality",
+            "learnability_openness",
+            "physical_readiness",
+            "availability_flexibility",
+        ],
+    }
+
+
+@router.post("/assessment/labor-path/transcript-chunk", response_model=TurnResponse)
+async def labor_path_transcript_chunk(
+    payload: LaborPathTranscriptRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+) -> TurnResponse:
+    return await session_turn(
+        payload.sessionId,
+        TurnRequest(
+            worker_text=payload.worker_text,
+            rubric_tag=payload.rubric_tag,
+            acoustic_confidence=payload.acoustic_confidence,
+        ),
+        locale,
+        db,
+    )
+
+
+@router.post("/scoring/labor-path/finalize")
+async def labor_path_finalize(
+    payload: LaborPathFinalizeRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+):
+    completed = await complete_session(payload.sessionId, locale, db)
+    return {
+        "sessionId": completed.session.id,
+        "profileType": "labor_pool_profile",
+        "laborPoolProfile": completed.session.labor_pool_profile,
+        "assessmentConfidence": completed.session.assessment_confidence,
+    }
+
+
+@router.get("/recruiter/labor-pool")
+async def recruiter_labor_pool(db: AsyncSession = Depends(get_db)):
+    pool = []
+    all_sessions = await store.get_all_sessions(db)
+    for s in all_sessions:
+        if s.status != "completed":
+            continue
+        if s.domain not in {"general_labor", "domain_unknown"}:
+            continue
+        pool.append(
+            {
+                "sessionId": s.id,
+                "workerId": s.worker_id,
+                "workerName": s.worker_name,
+                "placementReadiness": (s.labor_pool_profile or {}).get("placementReadiness", {}),
+                "assessmentConfidence": s.assessment_confidence,
+            }
+        )
+    return pool
+
+
+@router.get("/recruiter/labor-pool/{session_id}")
+async def recruiter_labor_pool_one(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    s = await store.get_session(db, session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if s.domain not in {"general_labor", "domain_unknown"}:
+        raise HTTPException(status_code=400, detail="Session is not a general labor profile")
+    return {
+        "sessionId": s.id,
+        "workerId": s.worker_id,
+        "workerName": s.worker_name,
+        "laborPoolProfile": s.labor_pool_profile,
+        "assessmentConfidence": s.assessment_confidence,
+    }

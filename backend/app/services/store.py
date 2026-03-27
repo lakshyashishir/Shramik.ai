@@ -9,6 +9,18 @@ from app.db_models import WorkerDB, SessionDB
 
 
 # Worker operations
+
+def _db_worker_to_model(db_worker: WorkerDB) -> Worker:
+    return Worker(
+        id=db_worker.id,
+        name=db_worker.name,
+        specialization=db_worker.specialization,
+        experience_years=db_worker.experience_years,
+        created_at=db_worker.created_at.isoformat(),
+        phone_number=db_worker.phone_number,
+    )
+
+
 async def create_worker(db: AsyncSession, worker: Worker) -> Worker:
     db_worker = WorkerDB(
         id=worker.id,
@@ -22,17 +34,6 @@ async def create_worker(db: AsyncSession, worker: Worker) -> Worker:
     await db.commit()
     await db.refresh(db_worker)
     return worker
-
-
-def _db_worker_to_model(db_worker: WorkerDB) -> Worker:
-    return Worker(
-        id=db_worker.id,
-        name=db_worker.name,
-        specialization=db_worker.specialization,
-        experience_years=db_worker.experience_years,
-        created_at=db_worker.created_at.isoformat(),
-        phone_number=db_worker.phone_number,
-    )
 
 
 async def get_worker(db: AsyncSession, worker_id: str) -> Optional[Worker]:
@@ -59,6 +60,7 @@ async def update_worker(db: AsyncSession, worker: Worker) -> Worker:
     db_worker.name = worker.name
     db_worker.specialization = worker.specialization
     db_worker.experience_years = worker.experience_years
+    db_worker.phone_number = worker.phone_number
     await db.commit()
     await db.refresh(db_worker)
     return worker
@@ -71,6 +73,7 @@ async def get_all_workers(db: AsyncSession) -> List[Worker]:
 
 
 # Session operations
+
 async def create_session(db: AsyncSession, session: Session) -> Session:
     db_session = SessionDB(
         id=session.id,
@@ -90,10 +93,13 @@ async def create_session(db: AsyncSession, session: Session) -> Session:
         integrity_events=[e.model_dump() for e in session.integrity_events],
         current_phase=session.current_phase,
         self_ratings=session.self_ratings,
+        interview_mode=session.interview_mode,
+        call_provider=session.call_provider,
+        call_phone_number=session.call_phone_number,
         external_call_id=session.external_call_id,
         external_call_status=session.external_call_status,
-        interview_mode=session.interview_mode,
-        call_phone_number=session.call_phone_number,
+        call_duration_seconds=session.call_duration_seconds,
+        latest_call_recording_url=session.latest_call_recording_url,
     )
     db.add(db_session)
     await db.commit()
@@ -133,10 +139,17 @@ async def update_session(db: AsyncSession, session: Session) -> Session:
     db_session.integrity_events = [e.model_dump() for e in session.integrity_events]
     db_session.current_phase = session.current_phase
     db_session.self_ratings = session.self_ratings
+    db_session.interview_mode = session.interview_mode
+    db_session.call_provider = session.call_provider
+    db_session.call_phone_number = session.call_phone_number
     if session.external_call_id is not None:
         db_session.external_call_id = session.external_call_id
     if session.external_call_status is not None:
         db_session.external_call_status = session.external_call_status
+    if session.call_duration_seconds is not None:
+        db_session.call_duration_seconds = session.call_duration_seconds
+    if session.latest_call_recording_url is not None:
+        db_session.latest_call_recording_url = session.latest_call_recording_url
 
     await db.commit()
     await db.refresh(db_session)
@@ -164,10 +177,13 @@ def _db_session_to_model(db_session: SessionDB) -> Session:
         integrity_events=[IntegrityEvent(**e) for e in (db_session.integrity_events or [])],
         current_phase=db_session.current_phase,
         self_ratings=db_session.self_ratings or {},
+        interview_mode=db_session.interview_mode or "web",
+        call_provider=db_session.call_provider,
+        call_phone_number=db_session.call_phone_number,
         external_call_id=db_session.external_call_id,
         external_call_status=db_session.external_call_status,
-        interview_mode=db_session.interview_mode or "web",
-        call_phone_number=db_session.call_phone_number,
+        call_duration_seconds=db_session.call_duration_seconds,
+        latest_call_recording_url=db_session.latest_call_recording_url,
     )
 
 

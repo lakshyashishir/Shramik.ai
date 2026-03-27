@@ -1,7 +1,8 @@
-# Legacy module — kept for test compatibility only.
+# Legacy module — kept for test/utility compatibility.
 # Production code uses app.services.store (PostgreSQL) directly.
 
 from fastapi import HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import choose_opening_question, finalize_session, run_agent_turn
 from app.models import (
@@ -12,12 +13,11 @@ from app.models import (
     new_id,
     utc_now_iso,
 )
-
-# Fallback in-memory store used only by legacy tests
-_sessions: dict[str, Session] = {}
+from app.services import store
 
 
-def create_session(
+async def create_session(
+    db: AsyncSession,
     worker: Worker,
     assignment: str,
     *,
@@ -48,18 +48,19 @@ def create_session(
         external_call_id=external_call_id,
         external_call_status=external_call_status,
     )
-    _sessions[session.id] = session
+    await store.create_session(db, session)
     return session, first_question
 
 
-def require_session(session_id: str) -> Session:
-    session = _sessions.get(session_id)
+async def require_session(db: AsyncSession, session_id: str) -> Session:
+    session = await store.get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
 
 
-def append_turn(
+async def append_turn(
+    db: AsyncSession,
     session_id: str,
     worker_text: str,
     *,
@@ -67,7 +68,7 @@ def append_turn(
     rubric_tag: str | None = None,
     acoustic_confidence: float | None = None,
 ) -> tuple[Session, TurnResponse]:
-    session = require_session(session_id)
+    session = await require_session(db, session_id)
     if session.status != "live":
         raise HTTPException(status_code=400, detail="Session already completed")
 
@@ -95,7 +96,7 @@ def append_turn(
             "live_score": new_score,
         }
     )
-    _sessions[session_id] = updated
+    await store.update_session(db, updated)
     return updated, TurnResponse(
         ai_question=result["ai_reply"],
         coach_note="",
@@ -105,17 +106,17 @@ def append_turn(
     )
 
 
-def complete_session(session_id: str, *, locale: str = "en") -> Session:
-    session = require_session(session_id)
+async def complete_session(db: AsyncSession, session_id: str, *, locale: str = "en") -> Session:
+    session = await require_session(db, session_id)
     if session.status == "completed":
         return session
     completed = finalize_session(session, locale)
-    _sessions[session_id] = completed
+    await store.update_session(db, completed)
     return completed
 
 
-def update_session(session_id: str, **updates: object) -> Session:
-    session = require_session(session_id)
+async def update_session(db: AsyncSession, session_id: str, **updates: object) -> Session:
+    session = await require_session(db, session_id)
     updated = session.model_copy(update=updates)
-    _sessions[session_id] = updated
+    await store.update_session(db, updated)
     return updated

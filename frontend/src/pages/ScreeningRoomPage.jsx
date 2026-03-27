@@ -52,7 +52,8 @@ const ASSIGNMENT_TEMPLATES = {
   beauty_professional: "Show a recent beauty service output (hair/mehendi/nail) and explain your process steps.",
   carpenter: "Make a simple joint on scrap wood (butt/half-lap) and explain your tool and marking process.",
   electrician: "Draw a simple 2-way switch circuit for one lamp with L/N/E and explain the logic.",
-  domain_unknown: "Complete registration questions about your work preferences and availability.",
+  general_labor: "Complete behavioral registration interview for labor-pool placement.",
+  domain_unknown: "Complete behavioral registration interview for labor-pool placement.",
 };
 const DOMAIN_KEYWORDS = {
   electrician: ["electric", "wiring", "bijli", "circuit", "switch", "panel", "mcb", "rccb", "rcbo"],
@@ -65,7 +66,7 @@ const detectDomainFromText = (text = "") => {
   for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
     if (keywords.some((k) => lower.includes(k))) return domain;
   }
-  return "domain_unknown";
+  return "general_labor";
 };
 const defaultAssignment = ASSIGNMENT_TEMPLATES.garment_worker;
 const INTEGRITY_POLL_MS = 500;
@@ -780,6 +781,7 @@ export default function ScreeningRoomPage() {
   const autoListenPendingRef = useRef(false);
 
   const isSessionLive = session?.status === "live";
+  const isGeneralLaborPath = session?.domain === "general_labor" || session?.domain === "domain_unknown";
   const scoreColor = liveScore >= 70 ? "#2563eb" : liveScore >= 45 ? "#3b82f6" : "#93c5fd";
   const visibleTranscript = transcript.slice(-8);
   useEffect(() => {
@@ -1626,7 +1628,7 @@ export default function ScreeningRoomPage() {
               )}
             </div>
 
-            {isSessionLive && (
+            {isSessionLive && !isGeneralLaborPath && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",
@@ -1659,7 +1661,7 @@ export default function ScreeningRoomPage() {
               </div>
             )}
 
-            {isSessionLive && (
+            {isSessionLive && !isGeneralLaborPath && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",
@@ -1708,7 +1710,7 @@ export default function ScreeningRoomPage() {
               </div>
             )}
 
-            {isSessionLive && (
+            {isSessionLive && !isGeneralLaborPath && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",

@@ -429,8 +429,7 @@ async def twilio_status_callback(
 
     terminal_statuses = {"completed", "busy", "failed", "no-answer", "canceled"}
     if (session.external_call_status or "").lower() in terminal_statuses and session.status == "live":
-        finalize_session(session, "hi")
-        completed = session.model_copy(update={"status": "completed", "ended_at": utc_now_iso()})
+        completed = finalize_session(session, "hi")
         await store.update_session(db, completed)
         session = completed
 

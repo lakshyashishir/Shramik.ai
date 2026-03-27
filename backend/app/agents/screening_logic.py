@@ -13,6 +13,7 @@ _SYSTEM_PROMPT_BY_DOMAIN = {
     "beauty_professional": Path(__file__).parent / "interview-system-beauty.md",
     "carpenter": Path(__file__).parent / "interview-system-carpenter.md",
     "electrician": Path(__file__).parent / "interview-system-electrician.md",
+    "general_labor": Path(__file__).parent / "interview-system-generic.md",
     "domain_unknown": Path(__file__).parent / "interview-system-generic.md",
 }
 
@@ -105,18 +106,40 @@ DOMAIN_CONFIGS = {
             "reject": "Worker did not demonstrate sufficient safety or circuit knowledge for this role.",
         },
     },
-    "domain_unknown": {
-        "label": "general worker",
+    "general_labor": {
+        "label": "general labor worker",
         "rubric_weights": {
-            "communication_confidence": 1.0,
+            "attitude_motivation": 0.30,
+            "reliability_punctuality": 0.25,
+            "learnability_openness": 0.22,
+            "physical_readiness": 0.15,
+            "availability_flexibility": 0.08,
         },
         "vision_rubric": None,
         "vision_prompt": "No vision task required.",
-        "vision_focus": ["clarity", "responsiveness"],
+        "vision_focus": ["not_applicable"],
         "fallback_summaries": {
-            "pass": "Worker completed registration questions and is ready for follow-up.",
-            "hold": "Worker needs additional clarification before proceeding.",
-            "reject": "Worker did not provide enough information to proceed.",
+            "pass": "Worker is behaviorally ready for helper/trainee style placements.",
+            "hold": "Worker is promising but needs supervised placement and recruiter review.",
+            "reject": "Worker needs additional support before placement.",
+        },
+    },
+    "domain_unknown": {
+        "label": "general labor worker",
+        "rubric_weights": {
+            "attitude_motivation": 0.30,
+            "reliability_punctuality": 0.25,
+            "learnability_openness": 0.22,
+            "physical_readiness": 0.15,
+            "availability_flexibility": 0.08,
+        },
+        "vision_rubric": None,
+        "vision_prompt": "No vision task required.",
+        "vision_focus": ["not_applicable"],
+        "fallback_summaries": {
+            "pass": "Worker is behaviorally ready for helper/trainee style placements.",
+            "hold": "Worker is promising but needs supervised placement and recruiter review.",
+            "reject": "Worker needs additional support before placement.",
         },
     },
 }
@@ -129,22 +152,45 @@ DOMAIN_KEYWORDS = {
 }
 
 
+def _is_labor_domain(domain: str | None) -> bool:
+    return (domain or "") in {"general_labor", "domain_unknown"}
+
+
 def detect_domain(*texts: str) -> str:
     corpus = " ".join(t for t in texts if t).lower()
     for domain, keywords in DOMAIN_KEYWORDS.items():
         if any(k in corpus for k in keywords):
             return domain
-    return "domain_unknown"
+    return "general_labor"
 
 
 def classify_trade_with_confidence(*texts: str) -> tuple[str, float, str]:
     corpus = " | ".join(t for t in texts if t).strip()
     if not corpus:
-        return "domain_unknown", 0.0, "empty_input"
+        return "general_labor", 0.0, "empty_input"
+
+    self_declared_unskilled_signals = [
+        "koi kaam nahi aata",
+        "no skill",
+        "kuch bhi karne ko taiyar",
+        "first job",
+        "fresher",
+        "helper ka kaam",
+        "loading",
+        "unloading",
+        "safai",
+        "construction helper",
+        "mazdoor",
+        "0 years",
+        "zero years",
+    ]
+    lowered = corpus.lower()
+    if any(sig in lowered for sig in self_declared_unskilled_signals):
+        return "general_labor", 0.95, "self_declared_unskilled"
 
     # Fast keyword fallback baseline.
     keyword_domain = detect_domain(corpus)
-    keyword_conf = 0.8 if keyword_domain != "domain_unknown" else 0.45
+    keyword_conf = 0.8 if keyword_domain != "general_labor" else 0.45
 
     try:
         client = _get_openai_client()
@@ -154,7 +200,7 @@ def classify_trade_with_confidence(*texts: str) -> tuple[str, float, str]:
                 {
                     "role": "system",
                     "content": (
-                        "Classify worker trade into one of: garment_worker, beauty_professional, carpenter, electrician, domain_unknown. "
+                    "Classify worker trade into one of: garment_worker, beauty_professional, carpenter, electrician, general_labor. "
                         "Return ONLY JSON: {\"domain\": string, \"confidence\": number}. "
                         "confidence must be between 0 and 1."
                     ),
@@ -166,9 +212,9 @@ def classify_trade_with_confidence(*texts: str) -> tuple[str, float, str]:
             max_tokens=80,
         )
         data = json.loads(resp.choices[0].message.content)
-        llm_domain = str(data.get("domain", "domain_unknown")).strip().lower()
+        llm_domain = str(data.get("domain", "general_labor")).strip().lower()
         if llm_domain not in DOMAIN_CONFIGS:
-            llm_domain = "domain_unknown"
+            llm_domain = "general_labor"
         try:
             llm_conf = float(data.get("confidence", 0.0))
         except (TypeError, ValueError):
@@ -177,9 +223,9 @@ def classify_trade_with_confidence(*texts: str) -> tuple[str, float, str]:
 
         if llm_conf >= 0.70:
             return llm_domain, llm_conf, "llm_confident"
-        if keyword_domain != "domain_unknown":
+        if keyword_domain != "general_labor":
             return keyword_domain, max(keyword_conf, llm_conf), "keyword_fallback_low_llm_conf"
-        return "domain_unknown", llm_conf, "llm_low_confidence"
+        return "general_labor", llm_conf, "llm_low_confidence"
     except Exception:
         return keyword_domain, keyword_conf, "keyword_only"
 
@@ -520,18 +566,30 @@ def _evaluate_transcript(session: Session, locale: str = "en") -> dict:
     config = get_domain_config(session.domain)
     rubric_keys = list(config["rubric_weights"].keys())
     rubric_key_json = ", ".join(f"\"{k}\": int" for k in rubric_keys)
-    system = (
-        f"You are Shramik.ai evaluator for {config['label']} skill screening. "
-        "Analyze the full interview transcript and score the worker strictly on each rubric 0-100. "
-        "Scoring guide: below 40 = poor/no knowledge, 40-60 = basic, 61-75 = competent, 76-90 = strong, 91+ = expert. "
-        "A worker giving vague or one-word answers should score 20-40, not 60+. "
-        "Return ONLY JSON with these exact keys: "
-        "{"
-        f"{rubric_key_json}, "
-        "\"summary\": \"2 honest sentences about this worker's readiness\", "
-        "\"recommendation\": \"pass|hold|reject\""
-        "}" + lang_note
-    )
+    if _is_labor_domain(session.domain):
+        system = (
+            "You are a behavioral assessment evaluator for general labor candidates. "
+            "Score each behavioral dimension from 1 to 5 (integers only). "
+            "Return ONLY JSON with these exact keys: "
+            "{"
+            f"{rubric_key_json}, "
+            "\"summary\": \"2-3 sentence recruiter summary\", "
+            "\"recommendation\": \"pass|hold|reject\""
+            "}" + lang_note
+        )
+    else:
+        system = (
+            f"You are Shramik.ai evaluator for {config['label']} skill screening. "
+            "Analyze the full interview transcript and score the worker strictly on each rubric 0-100. "
+            "Scoring guide: below 40 = poor/no knowledge, 40-60 = basic, 61-75 = competent, 76-90 = strong, 91+ = expert. "
+            "A worker giving vague or one-word answers should score 20-40, not 60+. "
+            "Return ONLY JSON with these exact keys: "
+            "{"
+            f"{rubric_key_json}, "
+            "\"summary\": \"2 honest sentences about this worker's readiness\", "
+            "\"recommendation\": \"pass|hold|reject\""
+            "}" + lang_note
+        )
 
     prompt = (
         f"Worker: {session.worker_name}\n"
@@ -724,6 +782,23 @@ def _build_self_awareness_profile(session: Session, rubric_raw: dict[str, float]
 
 
 def _build_assessment_confidence(session: Session, rubric_raw: dict[str, float], self_awareness_profile: dict) -> dict:
+    if _is_labor_domain(session.domain):
+        worker_turns = [t for t in session.transcript if t.speaker == "worker"]
+        transcript_depth = min(1.0, len(worker_turns) / 10.0)
+        acoustic_vals = [float(t.acoustic_confidence) for t in worker_turns if t.acoustic_confidence is not None]
+        acoustic_avg = sum(acoustic_vals) / len(acoustic_vals) if acoustic_vals else 0.65
+        acoustic_avg = max(0.0, min(1.0, acoustic_avg))
+        answer_consistency = 0.85
+        total = round((transcript_depth * 0.50) + (acoustic_avg * 0.30) + (answer_consistency * 0.20), 2)
+        band = "Reliable" if total >= 0.70 else "Medium" if total >= 0.45 else "Low"
+        return {
+            "transcriptDepth": round(transcript_depth, 2),
+            "acousticConsistency": round(acoustic_avg, 2),
+            "answerConsistency": round(answer_consistency, 2),
+            "overallConfidence": total,
+            "band": band,
+            "manualReviewRecommended": total < 0.45,
+        }
     rubric_keys = list(get_domain_config(session.domain)["rubric_weights"].keys())
     worker_turns = [t for t in session.transcript if t.speaker == "worker"]
     transcript_depth = min(1.0, len(worker_turns) / max(6, len(rubric_keys) * 2))
@@ -743,10 +818,7 @@ def _build_assessment_confidence(session: Session, rubric_raw: dict[str, float],
     acoustic_avg = sum(acoustic_vals) / len(acoustic_vals) if acoustic_vals else 0.6
     acoustic_avg = max(0.0, min(1.0, acoustic_avg))
 
-    contradiction_penalty = 0.0
-    if session.domain == "domain_unknown":
-        contradiction_penalty += 0.05
-    answer_consistency = max(0.0, min(1.0, 0.9 - contradiction_penalty))
+    answer_consistency = 0.9
 
     sa_score = float(self_awareness_profile.get("score", 0.0))
     self_awareness_alignment = max(0.0, min(1.0, sa_score / 5.0))
@@ -789,9 +861,13 @@ def finalize_session(session: Session, locale: str = "en") -> Session:
     rubric_raw: dict[str, float] = {}
     for key in rubric_keys:
         try:
-            rubric_raw[key] = float(max(0, min(100, int(eval_result.get(key, fallback_score)))))
+            raw_val = float(eval_result.get(key, fallback_score))
+            if _is_labor_domain(session.domain):
+                rubric_raw[key] = max(1.0, min(5.0, round(raw_val, 2)))
+            else:
+                rubric_raw[key] = float(max(0, min(100, int(raw_val))))
         except (TypeError, ValueError):
-            rubric_raw[key] = fallback_score
+            rubric_raw[key] = 3.0 if _is_labor_domain(session.domain) else fallback_score
 
     # Apply vision blend for VLM-primary rubric when snapshot exists
     vision_key = config.get("vision_rubric")
@@ -806,16 +882,40 @@ def finalize_session(session: Session, locale: str = "en") -> Session:
 
     integrity_compliance = round(session.integrity_log.integrity_score * 100, 2)
 
-    overall = round(
-        sum(rubric_raw[k] * w for k, w in config["rubric_weights"].items()),
-        2,
-    )
-    # Blend with integrity
-    overall = round(overall * 0.94 + integrity_compliance * 0.06, 2)
+    if _is_labor_domain(session.domain):
+        placement_readiness = round(sum(rubric_raw[k] * w for k, w in config["rubric_weights"].items()) * 2.0, 2)
+        overall = placement_readiness
+    else:
+        overall = round(
+            sum(rubric_raw[k] * w for k, w in config["rubric_weights"].items()),
+            2,
+        )
+        # Blend with integrity
+        overall = round(overall * 0.94 + integrity_compliance * 0.06, 2)
 
-    rubric_scores = {**rubric_raw, "integrity_compliance": integrity_compliance}
+    rubric_scores = {**rubric_raw}
+    if not _is_labor_domain(session.domain):
+        rubric_scores["integrity_compliance"] = integrity_compliance
     self_awareness_profile = _build_self_awareness_profile(session, rubric_raw)
     assessment_confidence = _build_assessment_confidence(session, rubric_raw, self_awareness_profile)
+    labor_pool_profile = {}
+    if _is_labor_domain(session.domain):
+        label = "Ready" if overall >= 8.0 else "Promising" if overall >= 6.0 else "Developing" if overall >= 4.0 else "Needs Support"
+        profile = session.phase0_profile or {}
+        labor_pool_profile = {
+            "profileType": "labor_pool_profile",
+            "pathTrigger": session.domain_detection_method,
+            "identity": {
+                "name": profile.get("name") or session.worker_name,
+                "age": profile.get("age"),
+                "sex": profile.get("sex"),
+                "address": profile.get("address"),
+            },
+            "behavioralScores": rubric_raw,
+            "placementReadiness": {"score": overall, "label": label},
+            "recruiterSummary": str(eval_result.get("summary", "")) or "Behavioral profile generated for labor-pool placement.",
+            "assessmentConfidence": assessment_confidence,
+        }
 
     if session.integrity_log.overall_flag == "critical_flag":
         recommendation = "reject"
@@ -849,5 +949,6 @@ def finalize_session(session: Session, locale: str = "en") -> Session:
             "rubric_scores": rubric_scores,
             "self_awareness_profile": self_awareness_profile,
             "assessment_confidence": assessment_confidence,
+            "labor_pool_profile": labor_pool_profile,
         }
     )

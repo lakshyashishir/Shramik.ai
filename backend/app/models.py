@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
@@ -125,6 +125,7 @@ class Session(BaseModel):
     phase0_profile: Dict[str, Any] = Field(default_factory=dict)
     phase0_completed: bool = False
     portfolio_enrichment: List[PortfolioItem] = Field(default_factory=list)
+    labor_pool_profile: Dict[str, Any] = Field(default_factory=dict)
     # Phone-call fields
     interview_mode: str = "web"
     call_provider: Optional[str] = None
