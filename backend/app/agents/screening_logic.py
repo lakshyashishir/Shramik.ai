@@ -255,25 +255,29 @@ def choose_opening_question(worker_name: str, assignment: str, locale: str = "en
     if _is_labor_domain(domain):
         if locale == "hi":
             return (
-                f"नमस्ते {worker_name}! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
-                "पहले, अपने बारे में बताइए — आप कहाँ से हैं, "
-                "और आप किस तरह का काम आसानी से कर सकते हैं?"
+                "नमस्ते! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
+                "पहले बताइए — आपका पूरा नाम क्या है, "
+                "आप किस तरह का काम करते हैं, "
+                "और आपको कितने सालों का अनुभव है?"
             )
         return (
-            f"Hello {worker_name}! Welcome to Shramik.ai screening. "
-            "First, tell us a bit about yourself — where are you from, "
-            "and what kind of work are you comfortable doing?"
+            "Hello! Welcome to Shramik.ai screening. "
+            "To start, please tell us — your full name, "
+            "what kind of work you do, "
+            "and how many years of experience you have."
         )
     if locale == "hi":
         return (
-            f"नमस्ते {worker_name}! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
-            "पहले, अपने बारे में बताइए — आप कहाँ से हैं, "
-            f"और कितने सालों से {domain_label} का काम कर रहे हैं?"
+            f"नमस्ते! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
+            f"पहले बताइए — आपका पूरा नाम क्या है, "
+            f"आप {domain_label} का काम करते हैं — इसकी पुष्टि करें, "
+            f"और कितने सालों से यह काम कर रहे हैं?"
         )
     return (
-        f"Hello {worker_name}! Welcome to Shramik.ai screening. "
-        "First, tell us a bit about yourself — where are you from, "
-        f"and how many years have you been doing {domain_label} work?"
+        f"Hello! Welcome to Shramik.ai screening. "
+        f"To start, please tell us — your full name, "
+        f"confirm that you work in {domain_label}, "
+        f"and how many years of experience you have."
     )
 
 

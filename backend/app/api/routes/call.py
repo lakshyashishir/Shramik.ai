@@ -9,8 +9,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import (
+    build_default_self_ratings,
     choose_opening_question,
+    classify_trade_with_confidence,
     finalize_session,
+    init_phase0_profile,
+    phase0_missing_fields,
     run_agent_turn,
 )
 from app.config import settings
@@ -24,6 +28,7 @@ from app.integrations.twilio_client import (
     start_outbound_call,
 )
 from app.models import Session, TranscriptItem, Worker, new_id, utc_now_iso
+from app.api.routes.sessions import ASSIGNMENT_TEMPLATES, DEFAULT_ASSIGNMENT
 from app.services import store
 from app.services.sarvam_speech import TTS_URL, sarvam_headers, transcribe_audio_bytes
 
@@ -92,12 +97,32 @@ async def _create_call_session(
     external_call_status: Optional[str] = None,
     call_phone_number: Optional[str] = None,
 ) -> tuple[Session, str]:
-    first_question = choose_opening_question(worker.name, assignment, "hi")
+    # Classify domain the same way as the web flow
+    assignment_for_classification = assignment
+    if not assignment_for_classification or assignment_for_classification.lower() == DEFAULT_ASSIGNMENT.lower():
+        assignment_for_classification = ""
+
+    domain, domain_confidence, detection_method = classify_trade_with_confidence(
+        worker.specialization,
+        assignment_for_classification,
+    )
+
+    # Pick domain-appropriate assignment if no custom one was given
+    if not assignment or assignment.lower() == DEFAULT_ASSIGNMENT.lower():
+        assignment = ASSIGNMENT_TEMPLATES.get(domain, DEFAULT_ASSIGNMENT)
+
+    first_question = choose_opening_question(worker.name, assignment, "hi", domain)
+    phase0_profile = init_phase0_profile(worker.name, worker.specialization)
+    phase0_completed = len(phase0_missing_fields(phase0_profile)) == 0
+
     session = Session(
         id=new_id("session"),
         worker_id=worker.id,
         worker_name=worker.name,
         assignment=assignment,
+        domain=domain,
+        domain_confidence=domain_confidence,
+        domain_detection_method=detection_method,
         status="live",
         started_at=utc_now_iso(),
         live_score=50.0,
@@ -106,7 +131,14 @@ async def _create_call_session(
         transcript=[TranscriptItem(speaker="ai", text=first_question, timestamp=utc_now_iso())],
         snapshot_feedback=[],
         rubric_scores={},
-        phase0_completed=True,  # skip onboarding questions for phone calls
+        self_ratings=build_default_self_ratings(domain),
+        prior_work_media=[],
+        grounded_questions=[],
+        self_awareness_profile={},
+        assessment_confidence={},
+        phase0_profile=phase0_profile,
+        phase0_completed=phase0_completed,
+        portfolio_enrichment=[],
         interview_mode="call",
         call_provider="twilio",
         call_phone_number=call_phone_number,
