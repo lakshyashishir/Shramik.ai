@@ -528,3 +528,101 @@ async def recruiter_labor_pool_one(
         "laborPoolProfile": s.labor_pool_profile,
         "assessmentConfidence": s.assessment_confidence,
     }
+
+
+# ─── Human Review Queue ──────────────────────────────────────────────────────
+
+class ReviewDecisionRequest(BaseModel):
+    reviewer_id: str = "admin"
+    final_recommendation: str          # pass | hold | reject
+    rubric_edits: dict = {}            # { rubric_key: new_score }
+    edit_notes: dict = {}              # { rubric_key: reason }
+    time_spent_seconds: int = 0
+
+
+@router.get("/review/queue")
+async def get_review_queue(db: AsyncSession = Depends(get_db)):
+    """Return completed sessions that need human review (confidence < 0.80 or integrity flags)."""
+    all_sessions = await store.get_all_sessions(db)
+    queue = []
+    for s in all_sessions:
+        if s.status != "completed":
+            continue
+
+        confidence_data = s.assessment_confidence or {}
+        confidence = confidence_data.get("overall", 1.0)
+        integrity_flag = s.integrity_log.overall_flag
+
+        needs_review = (
+            confidence < 0.80
+            or integrity_flag in ("requires_review", "critical_flag")
+        )
+        if not needs_review:
+            continue
+
+        # Build weak component explanation
+        weak_parts = []
+        if confidence < 0.55:
+            weak_parts.append("Very low confidence — re-interview recommended")
+        elif confidence < 0.80:
+            weak_parts.append(f"Confidence {round(confidence * 100)}% — below auto-forward threshold")
+        if integrity_flag == "critical_flag":
+            weak_parts.append("Critical integrity flag detected")
+        elif integrity_flag == "requires_review":
+            weak_parts.append("Integrity requires review")
+        if not s.snapshot_feedback:
+            weak_parts.append("No photo submitted")
+        if s.self_ratings:
+            for key, self_val in s.self_ratings.items():
+                ai_val = s.rubric_scores.get(key, 0)
+                if abs(self_val - ai_val) > 25:
+                    weak_parts.append("Self-rating vs AI score mismatch > 2 bands")
+                    break
+
+        queue.append({
+            "id": s.id,
+            "workerName": s.worker_name,
+            "workerId": s.worker_id,
+            "trade": s.assignment[:60] + "..." if len(s.assignment) > 60 else s.assignment,
+            "channel": s.interview_mode or "web",
+            "confidence": round(confidence, 3),
+            "overallScore": round(s.live_score),
+            "weakComponent": "; ".join(weak_parts) if weak_parts else "Manual spot-check",
+            "aiRecommendation": s.recommendation,
+            "integrityFlag": integrity_flag,
+            "rubricScores": {k: v for k, v in s.rubric_scores.items() if k != "integrity_compliance"},
+            "selfRatings": s.self_ratings,
+            "transcript": [t.model_dump() for t in s.transcript],
+            "summary": s.summary,
+            "submittedAt": s.ended_at or s.started_at,
+        })
+
+    # Sort by confidence ascending (lowest confidence first)
+    queue.sort(key=lambda x: x["confidence"])
+    return queue
+
+
+@router.post("/review/{session_id}/decision")
+async def submit_review_decision(
+    session_id: str,
+    payload: ReviewDecisionRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Submit a human reviewer's decision on a session."""
+    session = await store.get_session(db, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Apply rubric edits
+    if payload.rubric_edits:
+        updated_rubric = dict(session.rubric_scores)
+        for key, val in payload.rubric_edits.items():
+            updated_rubric[key] = max(0.0, min(100.0, float(val)))
+        session.rubric_scores = updated_rubric
+
+    # Apply recommendation override
+    if payload.final_recommendation in ("pass", "hold", "reject"):
+        session.recommendation = payload.final_recommendation
+
+    await store.update_session(db, session)
+    return {"ok": True, "session_id": session_id, "recommendation": session.recommendation}

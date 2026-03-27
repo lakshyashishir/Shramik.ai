@@ -6,6 +6,8 @@ import ScreeningRoomPage from "@/pages/ScreeningRoomPage";
 import AdminDashboardPage from "@/pages/AdminDashboardPage";
 import WorkersBoardPage from "@/pages/WorkersBoardPage";
 import ReviewQueuePage from "@/pages/ReviewQueuePage";
+import WorkerProfilePage from "@/pages/WorkerProfilePage";
+import WorkerEditProfilePage from "@/pages/WorkerEditProfilePage";
 import LandingPage from "@/pages/LandingPage";
 import { Toaster } from "@/components/ui/sonner";
 import { LanguageProvider, useLanguage } from "@/i18n/language";
@@ -194,6 +196,8 @@ function AppShell() {
           <Route path="/jobs" element={<WorkersBoardPage />} />
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/review" element={<ReviewQueuePage />} />
+          <Route path="/workers/:id" element={<WorkerProfilePage />} />
+          <Route path="/workers/:id/edit" element={<WorkerEditProfilePage />} />
         </Routes>
       </div>
     </div>
