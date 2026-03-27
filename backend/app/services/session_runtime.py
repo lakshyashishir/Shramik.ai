@@ -1,3 +1,6 @@
+# Legacy module — kept for test compatibility only.
+# Production code uses app.services.store (PostgreSQL) directly.
+
 from fastapi import HTTPException
 
 from app.agents.screening_logic import choose_opening_question, finalize_session, run_agent_turn
@@ -9,7 +12,9 @@ from app.models import (
     new_id,
     utc_now_iso,
 )
-from app.services.store import sessions
+
+# Fallback in-memory store used only by legacy tests
+_sessions: dict[str, Session] = {}
 
 
 def create_session(
@@ -23,12 +28,7 @@ def create_session(
     external_call_id: str | None = None,
     external_call_status: str | None = None,
 ) -> tuple[Session, str]:
-    first_question = choose_opening_question(
-        worker.name,
-        assignment,
-        interview_mode=interview_mode,
-        locale=locale,
-    )
+    first_question = choose_opening_question(worker.name, assignment, locale)
     session = Session(
         id=new_id("session"),
         worker_id=worker.id,
@@ -48,12 +48,12 @@ def create_session(
         external_call_id=external_call_id,
         external_call_status=external_call_status,
     )
-    sessions[session.id] = session
+    _sessions[session.id] = session
     return session, first_question
 
 
 def require_session(session_id: str) -> Session:
-    session = sessions.get(session_id)
+    session = _sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return session
@@ -95,7 +95,7 @@ def append_turn(
             "live_score": new_score,
         }
     )
-    sessions[session_id] = updated
+    _sessions[session_id] = updated
     return updated, TurnResponse(
         ai_question=result["ai_reply"],
         coach_note="",
@@ -110,12 +110,12 @@ def complete_session(session_id: str, *, locale: str = "en") -> Session:
     if session.status == "completed":
         return session
     completed = finalize_session(session, locale)
-    sessions[session_id] = completed
+    _sessions[session_id] = completed
     return completed
 
 
 def update_session(session_id: str, **updates: object) -> Session:
     session = require_session(session_id)
     updated = session.model_copy(update=updates)
-    sessions[session_id] = updated
+    _sessions[session_id] = updated
     return updated

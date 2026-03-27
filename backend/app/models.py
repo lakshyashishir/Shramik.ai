@@ -19,6 +19,7 @@ class Worker(BaseModel):
     specialization: str
     experience_years: int
     created_at: str
+    phone_number: Optional[str] = None
 
 
 class TranscriptItem(BaseModel):
@@ -124,6 +125,14 @@ class Session(BaseModel):
     phase0_profile: Dict[str, Any] = Field(default_factory=dict)
     phase0_completed: bool = False
     portfolio_enrichment: List[PortfolioItem] = Field(default_factory=list)
+    # Phone-call fields
+    interview_mode: str = "web"
+    call_provider: Optional[str] = None
+    call_phone_number: Optional[str] = None
+    external_call_id: Optional[str] = None
+    external_call_status: Optional[str] = None
+    call_duration_seconds: Optional[int] = None
+    latest_call_recording_url: Optional[str] = None
 
 
 class PriorWorkMediaRequest(BaseModel):

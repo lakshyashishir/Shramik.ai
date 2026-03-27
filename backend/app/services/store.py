@@ -16,6 +16,7 @@ async def create_worker(db: AsyncSession, worker: Worker) -> Worker:
         specialization=worker.specialization,
         experience_years=worker.experience_years,
         created_at=datetime.fromisoformat(worker.created_at.replace("Z", "+00:00")),
+        phone_number=worker.phone_number,
     )
     db.add(db_worker)
     await db.commit()
@@ -23,18 +24,31 @@ async def create_worker(db: AsyncSession, worker: Worker) -> Worker:
     return worker
 
 
-async def get_worker(db: AsyncSession, worker_id: str) -> Optional[Worker]:
-    result = await db.execute(select(WorkerDB).where(WorkerDB.id == worker_id))
-    db_worker = result.scalar_one_or_none()
-    if db_worker is None:
-        return None
+def _db_worker_to_model(db_worker: WorkerDB) -> Worker:
     return Worker(
         id=db_worker.id,
         name=db_worker.name,
         specialization=db_worker.specialization,
         experience_years=db_worker.experience_years,
         created_at=db_worker.created_at.isoformat(),
+        phone_number=db_worker.phone_number,
     )
+
+
+async def get_worker(db: AsyncSession, worker_id: str) -> Optional[Worker]:
+    result = await db.execute(select(WorkerDB).where(WorkerDB.id == worker_id))
+    db_worker = result.scalar_one_or_none()
+    if db_worker is None:
+        return None
+    return _db_worker_to_model(db_worker)
+
+
+async def get_worker_by_phone(db: AsyncSession, phone_number: str) -> Optional[Worker]:
+    result = await db.execute(select(WorkerDB).where(WorkerDB.phone_number == phone_number))
+    db_worker = result.scalar_one_or_none()
+    if db_worker is None:
+        return None
+    return _db_worker_to_model(db_worker)
 
 
 async def update_worker(db: AsyncSession, worker: Worker) -> Worker:
@@ -53,16 +67,7 @@ async def update_worker(db: AsyncSession, worker: Worker) -> Worker:
 async def get_all_workers(db: AsyncSession) -> List[Worker]:
     result = await db.execute(select(WorkerDB).order_by(WorkerDB.created_at.desc()))
     db_workers = result.scalars().all()
-    return [
-        Worker(
-            id=w.id,
-            name=w.name,
-            specialization=w.specialization,
-            experience_years=w.experience_years,
-            created_at=w.created_at.isoformat(),
-        )
-        for w in db_workers
-    ]
+    return [_db_worker_to_model(w) for w in db_workers]
 
 
 # Session operations
@@ -85,6 +90,10 @@ async def create_session(db: AsyncSession, session: Session) -> Session:
         integrity_events=[e.model_dump() for e in session.integrity_events],
         current_phase=session.current_phase,
         self_ratings=session.self_ratings,
+        external_call_id=session.external_call_id,
+        external_call_status=session.external_call_status,
+        interview_mode=session.interview_mode,
+        call_phone_number=session.call_phone_number,
     )
     db.add(db_session)
     await db.commit()
@@ -124,6 +133,10 @@ async def update_session(db: AsyncSession, session: Session) -> Session:
     db_session.integrity_events = [e.model_dump() for e in session.integrity_events]
     db_session.current_phase = session.current_phase
     db_session.self_ratings = session.self_ratings
+    if session.external_call_id is not None:
+        db_session.external_call_id = session.external_call_id
+    if session.external_call_status is not None:
+        db_session.external_call_status = session.external_call_status
 
     await db.commit()
     await db.refresh(db_session)
@@ -151,4 +164,16 @@ def _db_session_to_model(db_session: SessionDB) -> Session:
         integrity_events=[IntegrityEvent(**e) for e in (db_session.integrity_events or [])],
         current_phase=db_session.current_phase,
         self_ratings=db_session.self_ratings or {},
+        external_call_id=db_session.external_call_id,
+        external_call_status=db_session.external_call_status,
+        interview_mode=db_session.interview_mode or "web",
+        call_phone_number=db_session.call_phone_number,
     )
+
+
+async def get_session_by_call_id(db: AsyncSession, call_id: str) -> Optional[Session]:
+    result = await db.execute(select(SessionDB).where(SessionDB.external_call_id == call_id))
+    db_session = result.scalar_one_or_none()
+    if db_session is None:
+        return None
+    return _db_session_to_model(db_session)

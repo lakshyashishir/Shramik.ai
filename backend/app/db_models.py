@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy import String, Integer, Float, DateTime, JSON, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +18,7 @@ class WorkerDB(Base):
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    phone_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, index=True)
 
 
 class SessionDB(Base):
@@ -43,3 +45,7 @@ class SessionDB(Base):
     integrity_events: Mapped[dict] = mapped_column(JSON, default=list)
     current_phase: Mapped[str] = mapped_column(String(50), default="intro")
     self_ratings: Mapped[dict] = mapped_column(JSON, default=dict)
+    external_call_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    external_call_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    interview_mode: Mapped[str] = mapped_column(String(20), default="web")
+    call_phone_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
