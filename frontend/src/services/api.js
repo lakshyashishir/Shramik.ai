@@ -55,4 +55,8 @@ export const screeningApi = {
     (await client.get("/review/queue")).data,
   submitReviewDecision: async (sessionId, payload) =>
     (await client.post(`/review/${sessionId}/decision`, payload)).data,
+
+  // Jobs
+  listJobs: async () => (await client.get("/jobs")).data,
+  createJob: async (payload) => (await client.post("/jobs", payload)).data,
 };

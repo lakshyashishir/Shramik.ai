@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.call import router as call_router
 from app.api.routes.health import router as health_router
+from app.api.routes.jobs import router as jobs_router
 from app.api.routes.karma import router as karma_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.speech import router as speech_router
@@ -34,4 +35,5 @@ app.include_router(workers_router, prefix="/api")
 app.include_router(sessions_router, prefix="/api")
 app.include_router(speech_router, prefix="/api")
 app.include_router(call_router, prefix="/api")
+app.include_router(jobs_router, prefix="/api")
 app.include_router(karma_router, prefix="/api")

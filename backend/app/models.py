@@ -225,6 +225,28 @@ class IntegrityEventResponse(BaseModel):
     pause_reason: Optional[Literal["multiface", "face_absent", "face_change"]] = None
 
 
+class JobCreate(BaseModel):
+    title: str = Field(min_length=3, max_length=200)
+    budget: str = Field(min_length=1, max_length=100)
+    skill: str = Field(min_length=2, max_length=100)
+    description: str = Field(default="", max_length=1000)
+    urgent: bool = False
+    location: str = Field(default="", max_length=200)
+
+
+class Job(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    title: str
+    budget: str
+    skill: str
+    description: str = ""
+    urgent: bool = False
+    location: str = ""
+    posted_at: str
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

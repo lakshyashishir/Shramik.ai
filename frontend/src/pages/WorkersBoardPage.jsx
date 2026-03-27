@@ -66,13 +66,21 @@ const DEMO_WORKERS = [
   },
 ];
 
-const JOBS = [
-  { id: 1, title: "Bridal Lehenga Embroidery", budget: "Rs. 2000-4000", skill: "Embroidery", postedAgo: "2h", urgent: true },
-  { id: 2, title: "10 Suit Alterations (Corporate)", budget: "Rs. 1500", skill: "Alterations", postedAgo: "5h", urgent: false },
-  { id: 3, title: "Pattern Making - SS25 Collection", budget: "Rs. 5000-8000", skill: "Pattern Making", postedAgo: "1d", urgent: false },
-  { id: 4, title: "Leather Jacket Repair and Restoration", budget: "Rs. 800-1200", skill: "Leather Work", postedAgo: "3h", urgent: true },
-  { id: 5, title: "Children's School Uniform x 30 pcs", budget: "Rs. 600-800", skill: "Children's Wear", postedAgo: "2d", urgent: false },
+const FALLBACK_JOBS = [
+  { id: "f1", title: "Bridal Lehenga Embroidery", budget: "Rs. 2000-4000", skill: "Embroidery", posted_at: new Date(Date.now() - 2 * 3600000).toISOString(), urgent: true },
+  { id: "f2", title: "10 Suit Alterations (Corporate)", budget: "Rs. 1500", skill: "Alterations", posted_at: new Date(Date.now() - 5 * 3600000).toISOString(), urgent: false },
+  { id: "f3", title: "Leather Jacket Repair and Restoration", budget: "Rs. 800-1200", skill: "Leather Work", posted_at: new Date(Date.now() - 3 * 3600000).toISOString(), urgent: true },
 ];
+
+function postedAgo(isoString) {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
 
 const inputStyle = {
   width: "100%",
@@ -402,7 +410,7 @@ function JobCard({ job, copy, skillLabel }) {
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, padding: "5px 10px", borderRadius: 999, background: palette.soft, color: palette.primary, fontWeight: 700 }}>{skillLabel(job.skill)}</span>
         <span style={{ fontSize: 13, color: palette.text, fontWeight: 700, marginLeft: "auto" }}>{job.budget}</span>
-        <span style={{ fontSize: 12, color: palette.muted }}>{job.postedAgo}</span>
+        <span style={{ fontSize: 12, color: palette.muted }}>{job.posted_at ? postedAgo(job.posted_at) : (job.postedAgo || "")}</span>
       </div>
     </article>
   );
@@ -479,10 +487,17 @@ export default function WorkersBoardPage() {
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [activeTab, setActiveTab] = useState("tailors");
   const [postForm, setPostForm] = useState({ title: "", skill: "Alterations", budget: "", description: "" });
-  const [postedJobs, setPostedJobs] = useState(JOBS);
+  const [postedJobs, setPostedJobs] = useState([]);
   const [jobPosted, setJobPosted] = useState(false);
 
   const skillLabel = (skill) => copy.skillLabels[skill] || skill;
+
+  // Fetch jobs from API
+  useEffect(() => {
+    screeningApi.listJobs()
+      .then((jobs) => setPostedJobs(jobs && jobs.length > 0 ? jobs : FALLBACK_JOBS))
+      .catch(() => setPostedJobs(FALLBACK_JOBS));
+  }, []);
 
   // Fetch real workers from API
   useEffect(() => {
@@ -526,10 +541,14 @@ export default function WorkersBoardPage() {
 
   const handlePostJob = () => {
     if (!postForm.title || !postForm.description) return;
-    setPostedJobs((prev) => [{ id: Date.now(), title: postForm.title, budget: postForm.budget || copy.openBudget, skill: postForm.skill, postedAgo: copy.justNow, urgent: false }, ...prev]);
+    const optimistic = { id: `opt_${Date.now()}`, title: postForm.title, budget: postForm.budget || copy.openBudget, skill: postForm.skill, posted_at: new Date().toISOString(), urgent: false };
+    setPostedJobs((prev) => [optimistic, ...prev]);
     setJobPosted(true);
     setPostForm({ title: "", skill: "Alterations", budget: "", description: "" });
     setTimeout(() => setJobPosted(false), 3000);
+    screeningApi.createJob({ title: optimistic.title, budget: optimistic.budget, skill: optimistic.skill, description: postForm.description })
+      .then((created) => setPostedJobs((prev) => prev.map((j) => j.id === optimistic.id ? created : j)))
+      .catch(() => {});
   };
 
   const totalKarma = Object.values(karmaMap);

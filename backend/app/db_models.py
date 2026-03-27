@@ -6,6 +6,23 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
+class JobDB(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    budget: Mapped[str] = mapped_column(String(100), nullable=False)
+    skill: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="")
+    urgent: Mapped[bool] = mapped_column(Boolean, default=False)
+    location: Mapped[str] = mapped_column(String(200), default="")
+    posted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 class WorkerDB(Base):
     __tablename__ = "workers"
 
