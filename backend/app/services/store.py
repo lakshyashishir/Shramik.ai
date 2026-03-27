@@ -80,6 +80,9 @@ async def create_session(db: AsyncSession, session: Session) -> Session:
         worker_id=session.worker_id,
         worker_name=session.worker_name,
         assignment=session.assignment,
+        domain=session.domain,
+        domain_confidence=session.domain_confidence,
+        domain_detection_method=session.domain_detection_method,
         status=session.status,
         started_at=datetime.fromisoformat(session.started_at.replace("Z", "+00:00")),
         ended_at=datetime.fromisoformat(session.ended_at.replace("Z", "+00:00")) if session.ended_at else None,
@@ -93,6 +96,15 @@ async def create_session(db: AsyncSession, session: Session) -> Session:
         integrity_events=[e.model_dump() for e in session.integrity_events],
         current_phase=session.current_phase,
         self_ratings=session.self_ratings,
+        prior_work_media=[m.model_dump() for m in session.prior_work_media],
+        grounded_questions=session.grounded_questions,
+        self_awareness_profile=session.self_awareness_profile,
+        assessment_confidence=session.assessment_confidence,
+        phase0_profile=session.phase0_profile,
+        phase0_completed=session.phase0_completed,
+        portfolio_enrichment=[p.model_dump() for p in session.portfolio_enrichment],
+        labor_pool_profile=session.labor_pool_profile,
+        recruiter_decision=session.recruiter_decision,
         interview_mode=session.interview_mode,
         call_provider=session.call_provider,
         call_phone_number=session.call_phone_number,
@@ -128,6 +140,9 @@ async def update_session(db: AsyncSession, session: Session) -> Session:
         return await create_session(db, session)
 
     db_session.status = session.status
+    db_session.domain = session.domain
+    db_session.domain_confidence = session.domain_confidence
+    db_session.domain_detection_method = session.domain_detection_method
     db_session.ended_at = datetime.fromisoformat(session.ended_at.replace("Z", "+00:00")) if session.ended_at else None
     db_session.live_score = session.live_score
     db_session.recommendation = session.recommendation
@@ -139,6 +154,15 @@ async def update_session(db: AsyncSession, session: Session) -> Session:
     db_session.integrity_events = [e.model_dump() for e in session.integrity_events]
     db_session.current_phase = session.current_phase
     db_session.self_ratings = session.self_ratings
+    db_session.prior_work_media = [m.model_dump() for m in session.prior_work_media]
+    db_session.grounded_questions = session.grounded_questions
+    db_session.self_awareness_profile = session.self_awareness_profile
+    db_session.assessment_confidence = session.assessment_confidence
+    db_session.phase0_profile = session.phase0_profile
+    db_session.phase0_completed = session.phase0_completed
+    db_session.portfolio_enrichment = [p.model_dump() for p in session.portfolio_enrichment]
+    db_session.labor_pool_profile = session.labor_pool_profile
+    db_session.recruiter_decision = session.recruiter_decision
     db_session.interview_mode = session.interview_mode
     db_session.call_provider = session.call_provider
     db_session.call_phone_number = session.call_phone_number
@@ -157,13 +181,16 @@ async def update_session(db: AsyncSession, session: Session) -> Session:
 
 
 def _db_session_to_model(db_session: SessionDB) -> Session:
-    from app.models import TranscriptItem, SnapshotFeedback, IntegrityEvent
+    from app.models import TranscriptItem, SnapshotFeedback, IntegrityEvent, PriorWorkItem, PortfolioItem
 
     return Session(
         id=db_session.id,
         worker_id=db_session.worker_id,
         worker_name=db_session.worker_name,
         assignment=db_session.assignment,
+        domain=db_session.domain,
+        domain_confidence=db_session.domain_confidence,
+        domain_detection_method=db_session.domain_detection_method,
         status=db_session.status,
         started_at=db_session.started_at.isoformat(),
         ended_at=db_session.ended_at.isoformat() if db_session.ended_at else None,
@@ -177,6 +204,15 @@ def _db_session_to_model(db_session: SessionDB) -> Session:
         integrity_events=[IntegrityEvent(**e) for e in (db_session.integrity_events or [])],
         current_phase=db_session.current_phase,
         self_ratings=db_session.self_ratings or {},
+        prior_work_media=[PriorWorkItem(**m) for m in (db_session.prior_work_media or [])],
+        grounded_questions=db_session.grounded_questions or [],
+        self_awareness_profile=db_session.self_awareness_profile or {},
+        assessment_confidence=db_session.assessment_confidence or {},
+        phase0_profile=db_session.phase0_profile or {},
+        phase0_completed=bool(db_session.phase0_completed),
+        portfolio_enrichment=[PortfolioItem(**p) for p in (db_session.portfolio_enrichment or [])],
+        labor_pool_profile=db_session.labor_pool_profile or {},
+        recruiter_decision=db_session.recruiter_decision or {},
         interview_mode=db_session.interview_mode or "web",
         call_provider=db_session.call_provider,
         call_phone_number=db_session.call_phone_number,

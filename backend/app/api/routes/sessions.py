@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.screening_logic import (
@@ -35,6 +35,7 @@ from app.models import (
     SessionStartResponse,
     SnapshotRequest,
     SnapshotResponse,
+    Worker,
     TranscriptItem,
     TurnRequest,
     TurnResponse,
@@ -71,6 +72,65 @@ class LaborPathFinalizeRequest(BaseModel):
     sessionId: str
 
 
+class IntakeRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    age: int = Field(ge=14, le=80)
+    sex: str = Field(min_length=1, max_length=20)
+    address: str = Field(min_length=2, max_length=160)
+    tradeRaw: str = Field(min_length=1, max_length=240)
+    yearsExp: int = Field(ge=0, le=50)
+
+
+class ClassifyRequest(BaseModel):
+    tradeRaw: str = Field(min_length=1, max_length=240)
+    clarification: str | None = Field(default=None, max_length=240)
+
+
+class AssessmentSessionRequest(BaseModel):
+    workerId: str = Field(min_length=3, max_length=60)
+    assignment: str | None = Field(default=None, max_length=400)
+
+
+class TranscriptChunkRequest(BaseModel):
+    sessionId: str
+    worker_text: str = Field(min_length=1, max_length=600)
+    rubric_tag: str | None = None
+    acoustic_confidence: float | None = None
+
+
+class EvidenceRequest(BaseModel):
+    sessionId: str
+    image_data: str = Field(min_length=30)
+    note: str = Field(default="", max_length=240)
+
+
+class AssessmentPriorWorkMediaRequest(BaseModel):
+    sessionId: str
+    images: list[str] = Field(min_length=1, max_length=3)
+    note: str = Field(default="", max_length=280)
+
+
+class AssessmentPortfolioEnrichmentRequest(BaseModel):
+    sessionId: str
+    images: list[str] = Field(min_length=1, max_length=8)
+    note: str = Field(default="", max_length=280)
+
+
+class RecruiterApproveRequest(BaseModel):
+    sessionId: str
+    approvedRole: str = Field(min_length=2, max_length=120)
+    notes: str = Field(default="", max_length=500)
+
+
+class LaborPoolMatchRequest(BaseModel):
+    job_category: str
+    city: str | None = None
+    placement_readiness_label: str | None = None
+    availability_tag: str | None = None
+    physical_capability_tag: str | None = None
+    training_aspiration: str | None = None
+
+
 def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
     if log.face_change_detected:
         return log.model_copy(update={"overall_flag": "critical_flag", "integrity_score": 0.2})
@@ -79,6 +139,178 @@ def _recompute_integrity(log: IntegrityLog) -> IntegrityLog:
     if log.multiface_events > 0 or log.gaze_deviation_events > 0 or log.face_absent_events > 0:
         return log.model_copy(update={"overall_flag": "minor_warning", "integrity_score": 0.85})
     return log.model_copy(update={"overall_flag": "clear", "integrity_score": 1.0})
+
+
+def _is_labor_domain(domain: str | None) -> bool:
+    return (domain or "") in {"general_labor", "domain_unknown"}
+
+
+def _classification_payload(domain: str, confidence: float, method: str) -> dict:
+    return {
+        "domain": domain,
+        "subDomain": None,
+        "confidence": round(float(confidence), 2),
+        "method": method,
+        "isSkilled": not _is_labor_domain(domain),
+    }
+
+
+def _path_decision(domain: str, confidence: float) -> str:
+    if _is_labor_domain(domain):
+        return "labor"
+    return "skilled" if confidence >= 0.70 else "labor"
+
+
+@router.post("/assessment/intake")
+async def assessment_intake(
+    payload: IntakeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    specialization = payload.tradeRaw.strip()
+    worker = await store.create_worker(
+        db,
+        Worker(
+            id=new_id("worker"),
+            name=payload.name.strip(),
+            specialization=specialization,
+            experience_years=int(payload.yearsExp),
+            created_at=utc_now_iso(),
+        ),
+    )
+    domain, confidence, method = classify_trade_with_confidence(
+        specialization,
+        f"{payload.yearsExp} years",
+    )
+    return {
+        "candidateId": worker.id,
+        "classificationResult": _classification_payload(domain, confidence, method),
+        "pathDecision": _path_decision(domain, confidence),
+    }
+
+
+@router.post("/assessment/classify")
+async def assessment_classify(payload: ClassifyRequest):
+    joined = payload.tradeRaw if not payload.clarification else f"{payload.tradeRaw} | {payload.clarification}"
+    domain, confidence, method = classify_trade_with_confidence(joined)
+    return {
+        "classificationResult": _classification_payload(domain, confidence, method),
+        "pathDecision": _path_decision(domain, confidence),
+    }
+
+
+@router.get("/assessment/grounded-questions/{session_id}")
+async def assessment_grounded_questions(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    session = await store.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"sessionId": session.id, "groundedQuestions": session.grounded_questions}
+
+
+@router.post("/assessment/session")
+async def assessment_session_start(
+    payload: AssessmentSessionRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+):
+    raw_assignment = payload.assignment if payload.assignment is not None else DEFAULT_ASSIGNMENT
+    assignment = raw_assignment.strip() or DEFAULT_ASSIGNMENT
+    started = await start_session(
+        SessionStartRequest(worker_id=payload.workerId, assignment=assignment),
+        locale,
+        db,
+    )
+    return {"sessionId": started.session.id, "websocketToken": "", "firstQuestion": started.first_question}
+
+
+@router.post("/assessment/transcript-chunk", response_model=TurnResponse)
+async def assessment_transcript_chunk(
+    payload: TranscriptChunkRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+) -> TurnResponse:
+    return await session_turn(
+        payload.sessionId,
+        TurnRequest(
+            worker_text=payload.worker_text,
+            rubric_tag=payload.rubric_tag,
+            acoustic_confidence=payload.acoustic_confidence,
+        ),
+        locale,
+        db,
+    )
+
+
+@router.post("/assessment/evidence")
+async def assessment_evidence(
+    payload: EvidenceRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    response = await add_snapshot_feedback(
+        payload.sessionId,
+        SnapshotRequest(image_data=payload.image_data, note=payload.note),
+        db,
+    )
+    return {
+        "sessionId": payload.sessionId,
+        "quality_score": response.quality_score,
+        "vision_score_delta": round(response.quality_score - response.live_score, 2),
+        "focus_areas": response.focus_areas,
+    }
+
+
+@router.post("/assessment/prior-work-media")
+async def assessment_prior_work_media(
+    payload: AssessmentPriorWorkMediaRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    response = await add_prior_work_media(
+        payload.sessionId,
+        PriorWorkMediaRequest(images=payload.images, note=payload.note),
+        db,
+    )
+    return {
+        "sessionId": payload.sessionId,
+        "mediaAnnotation": [item.model_dump() for item in response.prior_work_media],
+        "groundedQuestions": response.grounded_questions,
+    }
+
+
+@router.post("/assessment/portfolio-enrichment")
+async def assessment_portfolio_enrichment(
+    payload: AssessmentPortfolioEnrichmentRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    response = await add_portfolio_enrichment(
+        payload.sessionId,
+        PortfolioEnrichmentRequest(images=payload.images, note=payload.note),
+        db,
+    )
+    return {
+        "sessionId": payload.sessionId,
+        "portfolioItems": [item.model_dump() for item in response.portfolio_enrichment],
+    }
+
+
+@router.post("/scoring/finalize")
+async def scoring_finalize(
+    payload: LaborPathFinalizeRequest,
+    locale: str = Query("en"),
+    db: AsyncSession = Depends(get_db),
+):
+    completed = await complete_session(payload.sessionId, locale, db)
+    return {
+        "sessionId": completed.session.id,
+        "profileType": "labor_pool_profile" if _is_labor_domain(completed.session.domain) else "skill_passport",
+        "overallScore": completed.session.live_score,
+        "overallBand": completed.session.recommendation,
+        "rubricScores": completed.session.rubric_scores,
+        "selfAwarenessProfile": completed.session.self_awareness_profile,
+        "assessmentConfidence": completed.session.assessment_confidence,
+        "laborPoolProfile": completed.session.labor_pool_profile,
+    }
 
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
@@ -91,11 +323,16 @@ async def start_session(
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
 
+    assignment_text = payload.assignment.strip()
+    assignment_for_classification = assignment_text
+    if not assignment_for_classification or assignment_for_classification.lower() == DEFAULT_ASSIGNMENT.lower():
+        assignment_for_classification = ""
+
     domain, domain_confidence, detection_method = classify_trade_with_confidence(
         worker.specialization,
-        payload.assignment,
+        assignment_for_classification,
     )
-    assignment = payload.assignment.strip()
+    assignment = assignment_text
     if not assignment or assignment.lower() == DEFAULT_ASSIGNMENT.lower():
         assignment = ASSIGNMENT_TEMPLATES.get(domain, DEFAULT_ASSIGNMENT)
 
@@ -491,7 +728,14 @@ async def labor_path_finalize(
 
 
 @router.get("/recruiter/labor-pool")
-async def recruiter_labor_pool(db: AsyncSession = Depends(get_db)):
+async def recruiter_labor_pool(
+    placement_readiness_label: str | None = Query(default=None),
+    availability_tags: str | None = Query(default=None),
+    physical_capability_tags: str | None = Query(default=None),
+    training_aspiration: str | None = Query(default=None),
+    city: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
     pool = []
     all_sessions = await store.get_all_sessions(db)
     for s in all_sessions:
@@ -499,12 +743,30 @@ async def recruiter_labor_pool(db: AsyncSession = Depends(get_db)):
             continue
         if s.domain not in {"general_labor", "domain_unknown"}:
             continue
+        labor = s.labor_pool_profile or {}
+        placement = (labor.get("placementReadiness") or {}).get("label")
+        availability_blob = str(labor.get("availabilityTags", ""))
+        physical_blob = str(labor.get("physicalCapabilityTags", ""))
+        aspiration = str(labor.get("trainingAspiration", ""))
+        profile_city = str((labor.get("identity") or {}).get("address", "")).lower()
+
+        if placement_readiness_label and str(placement).lower() != placement_readiness_label.lower():
+            continue
+        if availability_tags and availability_tags.lower() not in availability_blob.lower():
+            continue
+        if physical_capability_tags and physical_capability_tags.lower() not in physical_blob.lower():
+            continue
+        if training_aspiration and training_aspiration.lower() not in aspiration.lower():
+            continue
+        if city and city.lower() not in profile_city:
+            continue
+
         pool.append(
             {
                 "sessionId": s.id,
                 "workerId": s.worker_id,
                 "workerName": s.worker_name,
-                "placementReadiness": (s.labor_pool_profile or {}).get("placementReadiness", {}),
+                "placementReadiness": labor.get("placementReadiness", {}),
                 "assessmentConfidence": s.assessment_confidence,
             }
         )
@@ -528,3 +790,68 @@ async def recruiter_labor_pool_one(
         "laborPoolProfile": s.labor_pool_profile,
         "assessmentConfidence": s.assessment_confidence,
     }
+
+
+@router.post("/recruiter/labor-pool/match")
+async def recruiter_labor_pool_match(
+    payload: LaborPoolMatchRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    candidates = await recruiter_labor_pool(
+        placement_readiness_label=payload.placement_readiness_label,
+        availability_tags=payload.availability_tag,
+        physical_capability_tags=payload.physical_capability_tag,
+        training_aspiration=payload.training_aspiration,
+        city=payload.city,
+        db=db,
+    )
+
+    ranked = sorted(
+        candidates,
+        key=lambda c: (
+            float((c.get("placementReadiness") or {}).get("score", 0.0)),
+            float((c.get("assessmentConfidence") or {}).get("overallConfidence", 0.0)),
+        ),
+        reverse=True,
+    )
+    return {"jobCategory": payload.job_category, "matches": ranked}
+
+
+@router.get("/recruiter/candidates/{session_id}")
+async def recruiter_candidate_card(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    s = await store.get_session(db, session_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "candidateId": s.worker_id,
+        "sessionId": s.id,
+        "domain": s.domain,
+        "rubricScores": s.rubric_scores,
+        "selfAwarenessProfile": s.self_awareness_profile,
+        "assessmentConfidence": s.assessment_confidence,
+        "integrityLog": s.integrity_log,
+        "mediaAnnotations": [item.model_dump() for item in s.prior_work_media],
+        "portfolioEnrichment": [item.model_dump() for item in s.portfolio_enrichment],
+        "recruiterDecision": s.recruiter_decision,
+    }
+
+
+@router.post("/recruiter/assignment/approve")
+async def recruiter_assignment_approve(
+    payload: RecruiterApproveRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    s = await store.get_session(db, payload.sessionId)
+    if not s:
+        raise HTTPException(status_code=404, detail="Session not found")
+    decision = {
+        "approvedRole": payload.approvedRole.strip(),
+        "notes": payload.notes.strip(),
+        "approvedAt": utc_now_iso(),
+    }
+    updated = s.model_copy(update={"recruiter_decision": decision})
+    await store.update_session(db, updated)
+    return {"sessionId": updated.id, "recruiterDecision": decision}

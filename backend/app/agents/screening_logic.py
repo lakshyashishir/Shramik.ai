@@ -252,6 +252,18 @@ def _get_openai_client() -> AzureOpenAI:
 def choose_opening_question(worker_name: str, assignment: str, locale: str = "en", domain: str | None = None) -> str:
     config = get_domain_config(domain)
     domain_label = config["label"]
+    if _is_labor_domain(domain):
+        if locale == "hi":
+            return (
+                f"नमस्ते {worker_name}! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
+                "पहले, अपने बारे में बताइए — आप कहाँ से हैं, "
+                "और आप किस तरह का काम आसानी से कर सकते हैं?"
+            )
+        return (
+            f"Hello {worker_name}! Welcome to Shramik.ai screening. "
+            "First, tell us a bit about yourself — where are you from, "
+            "and what kind of work are you comfortable doing?"
+        )
     if locale == "hi":
         return (
             f"नमस्ते {worker_name}! श्रमिक.ai स्क्रीनिंग में आपका स्वागत है। "
@@ -304,14 +316,20 @@ def phase0_missing_fields(profile: dict) -> list[str]:
     return [f for f in PHASE0_FIELDS if _field_missing(profile, f)]
 
 
-def _phase0_question(field: str, locale: str) -> str:
+def _phase0_question(field: str, locale: str, domain: str | None = None) -> str:
+    is_labor = _is_labor_domain(domain)
     hi = {
         "name": "Aapka poora naam kya hai?",
         "age": "Aapki umar kitni hai?",
         "sex": "Aap kaunsa gender identify karte hain?",
         "address": "Aap kahan rehte hain? Sheher aur state batayein.",
         "tradeRaw": "Aap kya kaam karte hain? Apne kaam ke baare mein batayein.",
-        "yearsExp": "Yeh kaam kitne saalon se kar rahe hain?",
+        "yearsExp": (
+            "Aapne pehle kis-kis type ka kaam kiya hai? "
+            "Agar experience nahi hai toh bataiye aap kaunsa kaam kar sakte hain."
+            if is_labor else
+            "Yeh kaam kitne saalon se kar rahe hain?"
+        ),
     }
     en = {
         "name": "What is your full name?",
@@ -319,7 +337,12 @@ def _phase0_question(field: str, locale: str) -> str:
         "sex": "What gender do you identify as?",
         "address": "Where do you live? Please share city and state.",
         "tradeRaw": "What kind of work do you do? Please describe your trade.",
-        "yearsExp": "How many years of experience do you have in this work?",
+        "yearsExp": (
+            "What kind of work have you done before? "
+            "If you do not have experience yet, what work can you do?"
+            if is_labor else
+            "How many years of experience do you have in this work?"
+        ),
     }
     return (hi if locale == "hi" else en)[field]
 
@@ -408,7 +431,7 @@ def process_phase0_turn(session: Session, worker_text: str, locale: str = "en") 
         return {
             "phase0_profile": profile,
             "phase0_completed": False,
-            "ai_reply": _phase0_question(missing[0], locale),
+            "ai_reply": _phase0_question(missing[0], locale, session.domain),
             "phase": "intro",
             "rubric_tag": None,
             "score_delta": 0.0,

@@ -1,6 +1,10 @@
 import axios from "axios";
 
-const backendUrl = process.env.REACT_APP_BACKEND_URL || "http://localhost:8000";
+const defaultBackendUrl =
+  typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000`
+    : "http://localhost:8000";
+const backendUrl = process.env.REACT_APP_BACKEND_URL || defaultBackendUrl;
 const API_ROOT = `${backendUrl}/api`;
 
 const client = axios.create({

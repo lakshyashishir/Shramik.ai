@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import String, Integer, Float, DateTime, JSON, Text
+from sqlalchemy import String, Integer, Float, DateTime, JSON, Text, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,6 +28,9 @@ class SessionDB(Base):
     worker_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     worker_name: Mapped[str] = mapped_column(String(80), nullable=False)
     assignment: Mapped[str] = mapped_column(Text, nullable=False)
+    domain: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
+    domain_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    domain_detection_method: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="live")
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -45,6 +48,15 @@ class SessionDB(Base):
     integrity_events: Mapped[dict] = mapped_column(JSON, default=list)
     current_phase: Mapped[str] = mapped_column(String(50), default="intro")
     self_ratings: Mapped[dict] = mapped_column(JSON, default=dict)
+    prior_work_media: Mapped[dict] = mapped_column(JSON, default=list)
+    grounded_questions: Mapped[dict] = mapped_column(JSON, default=list)
+    self_awareness_profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    assessment_confidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    phase0_profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    phase0_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    portfolio_enrichment: Mapped[dict] = mapped_column(JSON, default=list)
+    labor_pool_profile: Mapped[dict] = mapped_column(JSON, default=dict)
+    recruiter_decision: Mapped[dict] = mapped_column(JSON, default=dict)
     interview_mode: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="web")
     call_provider: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     call_phone_number: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)

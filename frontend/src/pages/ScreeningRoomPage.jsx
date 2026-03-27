@@ -73,22 +73,6 @@ const INTEGRITY_POLL_MS = 500;
 const MULTIFACE_WARNING_MS = 3000;
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite";
-const HAND_MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task";
-const HAND_THEME = {
-  pointColor: "rgba(34,197,94,0.75)",
-  lineColor: "rgba(34,197,94,0.45)",
-  pointRadius: 3,
-  lineWidth: 1.6,
-};
-const HAND_CONNECTIONS = [
-  [0, 1], [1, 2], [2, 3], [3, 4],
-  [0, 5], [5, 6], [6, 7], [7, 8],
-  [5, 9], [9, 10], [10, 11], [11, 12],
-  [9, 13], [13, 14], [14, 15], [15, 16],
-  [13, 17], [17, 18], [18, 19], [19, 20],
-  [0, 17],
-];
 
 /* ─── i18n copy ──────────────────────────────────────────────── */
 const SRP_COPY = {
@@ -132,6 +116,11 @@ const SRP_COPY = {
     prior_work_title: "Prior Work (Optional)",
     prior_work_sub: "Upload 1-3 photos to generate grounded questions.",
     prior_work_upload: "Select photos",
+    prior_work_skip: "Skip media",
+    prior_work_selected: (n) => `${n} file(s) selected`,
+    prior_work_skipped: "Skipped. Interview continues with standard Phase 2 questions.",
+    prior_work_saved: "Prior work media saved.",
+    prior_work_edit: "Edit",
     prior_work_note_ph: "Short note about the work (optional)",
     prior_work_send: "Submit",
     prior_work_done: (n) => `Saved. ${n} grounded questions ready.`,
@@ -142,6 +131,7 @@ const SRP_COPY = {
     portfolio_sub: "Upload extra samples for recruiter profile depth.",
     portfolio_send: "Add Portfolio",
     portfolio_done: (n) => `Portfolio updated (${n} items).`,
+    self_rate_gate_msg: "Please complete self-rating first.",
     status_paused: "Interview paused until integrity clears.",
     status_recording: "Recording… tap mic again to stop.",
     status_tap_mic: "Tap the mic to record a spoken answer.",
@@ -169,7 +159,6 @@ const SRP_COPY = {
     stitch_snapshot: "Stitch Snapshot", no_snapshot: "No snapshot captured yet.",
     snapshot_btn: "Snapshot", recording: "Recording", no_session_badge: "No Session",
     ai_monitor_on: "AI Monitor On", ai_monitor_off: "AI Monitor Off",
-    hands_on: "Hands On", hands_off: "Hands Off",
     log_multiface: "Multiface", log_absent: "Face absent", log_gaze: "Gaze deviation",
     log_change: "Face change", log_flag: "Flag", log_warning: "warning", log_label: "Log",
   },
@@ -213,6 +202,11 @@ const SRP_COPY = {
     prior_work_title: "पिछला काम (वैकल्पिक)",
     prior_work_sub: "1-3 फोटो अपलोड करें ताकि grounded सवाल बनें।",
     prior_work_upload: "फोटो चुनें",
+    prior_work_skip: "स्किप करें",
+    prior_work_selected: (n) => `${n} फाइल चुनी गई`,
+    prior_work_skipped: "स्किप किया गया। इंटरव्यू Phase 2 के standard सवालों के साथ जारी रहेगा।",
+    prior_work_saved: "पिछले काम की मीडिया सेव हो गई।",
+    prior_work_edit: "बदलें",
     prior_work_note_ph: "काम का छोटा नोट (वैकल्पिक)",
     prior_work_send: "सबमिट",
     prior_work_done: (n) => `सेव हो गया। ${n} grounded सवाल तैयार।`,
@@ -223,6 +217,7 @@ const SRP_COPY = {
     portfolio_sub: "रिक्रूटर प्रोफाइल के लिए अतिरिक्त सैंपल अपलोड करें।",
     portfolio_send: "पोर्टफोलियो जोड़ें",
     portfolio_done: (n) => `पोर्टफोलियो अपडेट (${n} items)।`,
+    self_rate_gate_msg: "पहले self-rating पूरा करें।",
     status_paused: "निगरानी मंजूरी तक इंटरव्यू रुका।",
     status_recording: "रिकॉर्डिंग... रोकने के लिए फिर दबाएँ।",
     status_tap_mic: "जवाब देने के लिए माइक दबाएँ।",
@@ -250,7 +245,6 @@ const SRP_COPY = {
     stitch_snapshot: "सिलाई स्नैपशॉट", no_snapshot: "अभी कोई स्नैपशॉट नहीं।",
     snapshot_btn: "स्नैपशॉट", recording: "रिकॉर्डिंग", no_session_badge: "कोई सत्र नहीं",
     ai_monitor_on: "AI निगरानी चालू", ai_monitor_off: "AI निगरानी बंद",
-    hands_on: "हाथ: चालू", hands_off: "हाथ: बंद",
     log_multiface: "कई चेहरे", log_absent: "चेहरा अनुपस्थित", log_gaze: "नज़र भटकाव",
     log_change: "चेहरा परिवर्तन", log_flag: "चिह्न", log_warning: "चेतावनी", log_label: "लॉग",
   },
@@ -282,40 +276,6 @@ function faceChangeScore(baseline, next) {
     Math.abs(next.noseXNorm - baseline.noseXNorm) * 0.3 +
     Math.abs(next.noseYNorm - baseline.noseYNorm) * 0.25
   );
-}
-
-function drawHandOverlay(ctx, handLandmarks, videoW, videoH, canvasW, canvasH) {
-  const scale = Math.max(canvasW / Math.max(videoW, 1), canvasH / Math.max(videoH, 1));
-  const scaledW = videoW * scale;
-  const scaledH = videoH * scale;
-  const offsetX = (canvasW - scaledW) / 2;
-  const offsetY = (canvasH - scaledH) / 2;
-  const toCanvas = (pt) => ({
-    x: pt.x * scaledW + offsetX,
-    y: pt.y * scaledH + offsetY,
-  });
-
-  ctx.strokeStyle = HAND_THEME.lineColor;
-  ctx.lineWidth = HAND_THEME.lineWidth;
-  HAND_CONNECTIONS.forEach(([a, b]) => {
-    const pa = handLandmarks[a];
-    const pb = handLandmarks[b];
-    if (!pa || !pb) return;
-    const ca = toCanvas(pa);
-    const cb = toCanvas(pb);
-    ctx.beginPath();
-    ctx.moveTo(ca.x, ca.y);
-    ctx.lineTo(cb.x, cb.y);
-    ctx.stroke();
-  });
-
-  ctx.fillStyle = HAND_THEME.pointColor;
-  handLandmarks.forEach((pt) => {
-    const c = toCanvas(pt);
-    ctx.beginPath();
-    ctx.arc(c.x, c.y, HAND_THEME.pointRadius, 0, Math.PI * 2);
-    ctx.fill();
-  });
 }
 
 /* ─── AI Orb ─────────────────────────────────────────────────── */
@@ -451,25 +411,55 @@ function VoiceOnboardingScreen({ onComplete, onSkip }) {
   const [phase, setPhase] = useState("intro"); // intro | listening | processing | confirm | error
   const [workerInfo, setWorkerInfo] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [needsGreetingTap, setNeedsGreetingTap] = useState(false);
   const recRef = useRef(null);
+  const introPlayedRef = useRef(false);
+  const introAudioRef = useRef(null);
 
   // Force Hindi for the onboarding screen regardless of cached locale
   useEffect(() => { setLocale("hi"); }, []);
 
+  const playIntroGreeting = async (forceByTap = false) => {
+    try {
+      const blob = await screeningApi.ttsSynthesize(copy.vob_tts_welcome, "hi-IN");
+      const url = URL.createObjectURL(blob);
+      if (introAudioRef.current) {
+        introAudioRef.current.pause();
+        introAudioRef.current.src = "";
+        introAudioRef.current = null;
+      }
+      const audio = new Audio(url);
+      introAudioRef.current = audio;
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.onerror = () => URL.revokeObjectURL(url);
+      await audio.play();
+      setNeedsGreetingTap(false);
+    } catch {
+      if (forceByTap) {
+        try {
+          const utt = new SpeechSynthesisUtterance(copy.vob_tts_welcome);
+          utt.lang = "hi-IN";
+          window.speechSynthesis.cancel();
+          window.speechSynthesis.speak(utt);
+          setNeedsGreetingTap(false);
+          return;
+        } catch {}
+      }
+      setNeedsGreetingTap(true);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      try {
-        const blob = await screeningApi.ttsSynthesize(
-          copy.vob_tts_welcome,
-          "hi-IN"
-        );
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.onended = () => URL.revokeObjectURL(url);
-        audio.onerror = () => URL.revokeObjectURL(url);
-        audio.play().catch(() => {});
-      } catch {}
-    })();
+    if (introPlayedRef.current) return;
+    introPlayedRef.current = true;
+    playIntroGreeting(false);
+    return () => {
+      if (introAudioRef.current) {
+        introAudioRef.current.pause();
+        introAudioRef.current.src = "";
+        introAudioRef.current = null;
+      }
+    };
   }, []);
 
   const startListening = async () => {
@@ -559,6 +549,24 @@ function VoiceOnboardingScreen({ onComplete, onSkip }) {
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", margin: 0 }}>
             {copy.vob_intro_example}
           </p>
+          {needsGreetingTap && (
+            <button
+              onClick={() => playIntroGreeting(true)}
+              style={{
+                marginTop: 12,
+                border: "1px solid rgba(147,197,253,0.45)",
+                background: "rgba(59,130,246,0.16)",
+                color: "#dbeafe",
+                borderRadius: 999,
+                padding: "7px 14px",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Tap to hear greeting
+            </button>
+          )}
         </>}
         {phase === "listening" && <>
           <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(22px, 5vw, 32px)", color: "#93c5fd", margin: "0 0 10px" }}>
@@ -741,31 +749,28 @@ export default function ScreeningRoomPage() {
   const [showTextFallback, setShowTextFallback] = useState(false);
   const [textFallbackInput, setTextFallbackInput] = useState("");
   const [currentPhase, setCurrentPhase] = useState("intro");
-  const [handOverlayOn, setHandOverlayOn] = useState(true);
   const [autoListenEnabled] = useState(true); // auto-start recording after AI speaks
   const lastAutoAssignmentRef = useRef(defaultAssignment);
   const assignmentTouchedRef = useRef(false);
   const [priorWorkImages, setPriorWorkImages] = useState([]);
   const [priorWorkNote, setPriorWorkNote] = useState("");
   const [priorWorkStatus, setPriorWorkStatus] = useState("");
+  const [priorWorkSkipped, setPriorWorkSkipped] = useState(false);
+  const [priorWorkLocked, setPriorWorkLocked] = useState(false);
   const [selfRatings, setSelfRatings] = useState({});
   const [selfRatingStatus, setSelfRatingStatus] = useState("");
+  const [selfRatingsCompleted, setSelfRatingsCompleted] = useState(false);
   const [portfolioImages, setPortfolioImages] = useState([]);
   const [portfolioNote, setPortfolioNote] = useState("");
   const [portfolioStatus, setPortfolioStatus] = useState("");
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const handCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const autoSnapshotRef = useRef(null);
   const integrityIntervalRef = useRef(null);
   const detectorRef = useRef(null);
   const detectionBusyRef = useRef(false);
-  const handLandmarkerRef = useRef(null);
-  const handBusyRef = useRef(false);
-  const handRafRef = useRef(null);
-  const lastHandFrameAtRef = useRef(0);
   const multifaceDeadlineRef = useRef(null);
   const faceAbsentActiveRef = useRef(false);
   const baselineSignatureRef = useRef(null);
@@ -773,6 +778,7 @@ export default function ScreeningRoomPage() {
   const faceChangeLatchedRef = useRef(false);
   const lastIntegrityEventAtRef = useRef({});
   const transcriptListRef = useRef(null);
+  const aiAudioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -782,8 +788,38 @@ export default function ScreeningRoomPage() {
 
   const isSessionLive = session?.status === "live";
   const isGeneralLaborPath = session?.domain === "general_labor" || session?.domain === "domain_unknown";
+  const requiresSelfRatings =
+    isSessionLive &&
+    !isGeneralLaborPath &&
+    currentPhase !== "intro" &&
+    !selfRatingsCompleted;
   const scoreColor = liveScore >= 70 ? "#2563eb" : liveScore >= 45 ? "#3b82f6" : "#93c5fd";
   const visibleTranscript = transcript.slice(-8);
+  const formatRubricLabel = (key = "") => {
+    const hiLabels = {
+      stitch_quality: "सिलाई गुणवत्ता",
+      machine_familiarity: "मशीन जानकारी",
+      technical_knowledge: "तकनीकी समझ",
+      fabric_material_knowledge: "कपड़ा जानकारी",
+      communication_confidence: "संवाद आत्मविश्वास",
+      work_output_quality: "काम की गुणवत्ता",
+      technique_process_knowledge: "तकनीक व प्रक्रिया",
+      tool_product_knowledge: "औज़ार/प्रोडक्ट ज्ञान",
+      client_assessment: "क्लाइंट आकलन",
+      joint_assembly_quality: "जोड़ गुणवत्ता",
+      tool_handling: "औज़ार उपयोग",
+      material_knowledge: "मटेरियल ज्ञान",
+      measurement_precision: "माप सटीकता",
+      safety_protocol: "सुरक्षा नियम",
+      circuit_load_knowledge: "सर्किट/लोड ज्ञान",
+      circuit_diagram_quality: "सर्किट डायग्राम",
+      tool_instrument_knowledge: "उपकरण ज्ञान",
+    };
+    if (locale === "hi" && hiLabels[key]) return hiLabels[key];
+    return key
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  };
   useEffect(() => {
     if (transcriptListRef.current) {
       transcriptListRef.current.scrollTop = transcriptListRef.current.scrollHeight;
@@ -838,11 +874,13 @@ export default function ScreeningRoomPage() {
     const list = Array.from(files).slice(0, 3);
     const urls = await Promise.all(list.map(fileToDataUrl));
     setPriorWorkImages(urls);
-    setPriorWorkStatus("");
+    setPriorWorkSkipped(false);
+    setPriorWorkLocked(false);
+    setPriorWorkStatus(copy.prior_work_selected(urls.length));
   };
 
   const submitPriorWork = async () => {
-    if (!session?.id || priorWorkImages.length === 0) return;
+    if (!session?.id || priorWorkImages.length === 0 || priorWorkSkipped) return;
     try {
       setPriorWorkStatus("Submitting...");
       const res = await screeningApi.submitPriorWork(session.id, {
@@ -850,10 +888,26 @@ export default function ScreeningRoomPage() {
         note: priorWorkNote.trim(),
       });
       const count = res?.grounded_questions?.length ?? 0;
+      setPriorWorkLocked(true);
+      setPriorWorkSkipped(false);
       setPriorWorkStatus(copy.prior_work_done(count));
     } catch (err) {
       setPriorWorkStatus("Upload failed. Please try again.");
     }
+  };
+
+  const skipPriorWork = () => {
+    setPriorWorkImages([]);
+    setPriorWorkNote("");
+    setPriorWorkSkipped(true);
+    setPriorWorkLocked(true);
+    setPriorWorkStatus(copy.prior_work_skipped);
+  };
+
+  const editPriorWork = () => {
+    setPriorWorkLocked(false);
+    setPriorWorkSkipped(false);
+    setPriorWorkStatus("");
   };
 
   const handlePortfolioFiles = async (files) => {
@@ -883,6 +937,7 @@ export default function ScreeningRoomPage() {
     try {
       const res = await screeningApi.setSelfRatings(session.id, { ratings: selfRatings });
       setSelfRatings(res?.self_ratings || selfRatings);
+      setSelfRatingsCompleted(true);
       setSelfRatingStatus(copy.self_rate_done);
     } catch {
       setSelfRatingStatus("Failed to save self-ratings.");
@@ -897,8 +952,11 @@ export default function ScreeningRoomPage() {
       clearInterval(autoSnapshotRef.current);
       clearInterval(integrityIntervalRef.current);
       detectorRef.current?.close?.();
-      handLandmarkerRef.current?.close?.();
-      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
+      if (aiAudioRef.current) {
+        aiAudioRef.current.pause();
+        aiAudioRef.current.src = "";
+        aiAudioRef.current = null;
+      }
       window.speechSynthesis.cancel();
       if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
       clearTimeout(silenceTimerRef.current);
@@ -934,72 +992,6 @@ export default function ScreeningRoomPage() {
     return () => { cancelled = true; clearInterval(integrityIntervalRef.current); detectorRef.current?.close?.(); detectorRef.current = null; setIntegrityReady(false); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSessionLive, cameraReady]);
-
-  useEffect(() => {
-    if (!cameraReady || !videoRef.current || !handOverlayOn) {
-      handLandmarkerRef.current?.close?.(); handLandmarkerRef.current = null;
-      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
-      if (handCanvasRef.current) {
-        const ctx = handCanvasRef.current.getContext("2d");
-        ctx?.clearRect(0, 0, handCanvasRef.current.width || 0, handCanvasRef.current.height || 0);
-      }
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const vision = await import("@mediapipe/tasks-vision");
-        const fileset = await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
-        const handLandmarker = await vision.HandLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: HAND_MODEL_URL },
-          runningMode: "VIDEO",
-          numHands: 2,
-          minHandDetectionConfidence: 0.5,
-          minHandPresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
-        if (cancelled) { handLandmarker.close(); return; }
-        handLandmarkerRef.current = handLandmarker;
-        const loop = () => {
-          if (cancelled) return;
-          handRafRef.current = requestAnimationFrame(loop);
-          if (handBusyRef.current || !handLandmarkerRef.current || !videoRef.current || !handCanvasRef.current) return;
-          if (videoRef.current.readyState < 2 || videoRef.current.videoWidth < 32) return;
-          const now = performance.now();
-          if (now - lastHandFrameAtRef.current < 33) return;
-          lastHandFrameAtRef.current = now;
-          handBusyRef.current = true;
-          try {
-            const result = handLandmarkerRef.current.detectForVideo(videoRef.current, now);
-            const canvas = handCanvasRef.current;
-            const video = videoRef.current;
-            const ctx = canvas.getContext("2d");
-            const targetW = canvas.clientWidth || video.videoWidth || 1280;
-            const targetH = canvas.clientHeight || video.videoHeight || 720;
-            canvas.width = targetW;
-            canvas.height = targetH;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            (result.landmarks || []).forEach((handLandmarks) => {
-              drawHandOverlay(
-                ctx,
-                handLandmarks,
-                video.videoWidth || targetW,
-                video.videoHeight || targetH,
-                targetW,
-                targetH
-              );
-            });
-          } catch { } finally { handBusyRef.current = false; }
-        };
-        loop();
-      } catch { }
-    })();
-    return () => {
-      cancelled = true;
-      if (handRafRef.current) cancelAnimationFrame(handRafRef.current);
-      handLandmarkerRef.current?.close?.(); handLandmarkerRef.current = null;
-    };
-  }, [cameraReady, handOverlayOn]);
 
   const postIntegrityEvent = async (event, details = {}, throttleMs = 0) => {
     if (!session?.id) return null;
@@ -1073,12 +1065,29 @@ export default function ScreeningRoomPage() {
     try {
       const audioBlob = await screeningApi.ttsSynthesize(text);
       const url = URL.createObjectURL(audioBlob);
+      if (aiAudioRef.current) {
+        aiAudioRef.current.pause();
+        aiAudioRef.current.src = "";
+        aiAudioRef.current = null;
+      }
       const audio = new Audio(url);
-      audio.onended = () => { setAiSpeaking(false); URL.revokeObjectURL(url); triggerAutoListen(); };
-      audio.onerror = () => { setAiSpeaking(false); URL.revokeObjectURL(url); triggerAutoListen(); };
+      aiAudioRef.current = audio;
+      audio.onended = () => {
+        setAiSpeaking(false);
+        URL.revokeObjectURL(url);
+        if (aiAudioRef.current === audio) aiAudioRef.current = null;
+        triggerAutoListen();
+      };
+      audio.onerror = () => {
+        setAiSpeaking(false);
+        URL.revokeObjectURL(url);
+        if (aiAudioRef.current === audio) aiAudioRef.current = null;
+        triggerAutoListen();
+      };
       await audio.play();
     } catch {
       const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = locale === "hi" ? "hi-IN" : "en-IN";
       msg.onend = () => { setAiSpeaking(false); triggerAutoListen(); };
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(msg);
@@ -1095,22 +1104,35 @@ export default function ScreeningRoomPage() {
         const created = await screeningApi.createWorker({ name: workerDraft.name.trim(), specialization: workerDraft.specialization.trim(), experience_years: Number(workerDraft.experience_years) || 0 });
         workerId = created.id; setSelectedWorkerId(created.id); setWorkers(p => [created, ...p]);
       }
-      const started = await screeningApi.startSession({ worker_id: workerId, assignment: assignment.trim() }, locale);
+      const safeAssignment = assignment.trim().length >= 8 ? assignment.trim() : defaultAssignment;
+      const started = await screeningApi.startSession({ worker_id: workerId, assignment: safeAssignment }, locale);
       resetIntegrityState();
       setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
       setTranscript(started.session.transcript || []); setSessionDone(false); setSetupOpen(false);
       setCurrentPhase(started.session.current_phase || "intro");
       setShowTextFallback(false); setTextFallbackInput("");
+      setSelfRatingsCompleted(false); setSelfRatingStatus("");
+      setPriorWorkImages([]); setPriorWorkNote(""); setPriorWorkStatus(""); setPriorWorkSkipped(false); setPriorWorkLocked(false);
+      setPortfolioImages([]); setPortfolioNote(""); setPortfolioStatus("");
       toast.success("Live screening started.");
       speakAi(started.first_question);
-    } catch { toast.error("Could not start screening session."); }
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail) ? (detail[0]?.msg || "Session validation failed.") : (detail || "Could not start screening session.");
+      toast.error(String(msg));
+      try { await loadWorkers(); } catch {}
+    }
     finally { setIsSubmitting(false); }
   };
 
   const submitWorkerTurn = async (explicitText, acousticConf = null) => {
     const text = explicitText?.trim();
     if (!session || !text || integrityPaused) return;
+    if (requiresSelfRatings) {
+      toast.error(copy.self_rate_gate_msg);
+      return;
+    }
     setIsSubmitting(true);
     try {
       setTranscript(p => [...p, { speaker: "worker", text, timestamp: new Date().toISOString() }]);
@@ -1179,6 +1201,10 @@ export default function ScreeningRoomPage() {
   const startVoiceInput = async (autoMode = false) => {
     if (integrityPaused) { if (!autoMode) toast.error("Interview paused."); return; }
     if (!isSessionLive && autoMode) return;
+    if (requiresSelfRatings) {
+      if (!autoMode) toast.error(copy.self_rate_gate_msg);
+      return;
+    }
 
     // If already recording, stop it
     if (isListening && mediaRecorderRef.current) {
@@ -1269,18 +1295,25 @@ export default function ScreeningRoomPage() {
     setVoiceOnboardingDone(true);
     setIsSubmitting(true);
     try {
-      const started = await screeningApi.startSession({ worker_id: workerData.id, assignment: assignment.trim() }, locale);
+      const safeAssignment = assignment.trim().length >= 8 ? assignment.trim() : defaultAssignment;
+      const started = await screeningApi.startSession({ worker_id: workerData.id, assignment: safeAssignment }, locale);
       resetIntegrityState();
       setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
       setTranscript(started.session.transcript || []); setSessionDone(false); setSetupOpen(false);
       setCurrentPhase(started.session.current_phase || "intro");
       setShowTextFallback(false); setTextFallbackInput("");
+      setSelfRatingsCompleted(false); setSelfRatingStatus("");
+      setPriorWorkImages([]); setPriorWorkNote(""); setPriorWorkStatus(""); setPriorWorkSkipped(false); setPriorWorkLocked(false);
+      setPortfolioImages([]); setPortfolioNote(""); setPortfolioStatus("");
       toast.success("Live screening started.");
       speakAi(started.first_question);
-    } catch {
-      toast.error("Could not start screening session.");
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail) ? (detail[0]?.msg || "Session validation failed.") : (detail || "Could not start screening session.");
+      toast.error(String(msg));
       setVoiceOnboardingDone(false);
+      setSetupOpen(true);
     } finally { setIsSubmitting(false); }
   };
 
@@ -1582,7 +1615,8 @@ export default function ScreeningRoomPage() {
             display: "flex", flexDirection: "column",
             borderRight: "1px solid rgba(35,49,79,0.08)",
             background: "#ffffff",
-            overflow: "hidden",
+            overflowY: "auto",
+            overflowX: "hidden",
           }}>
 
             {/* orb + question */}
@@ -1638,21 +1672,37 @@ export default function ScreeningRoomPage() {
                 <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
                   {copy.self_rate_title}
                 </p>
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8, marginTop: 8 }}>
                   {Object.entries(selfRatings || {}).map(([key, value]) => (
-                    <label key={key} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "#334155" }}>
-                      <span>{key}</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={5}
-                        step={0.5}
-                        value={value}
-                        onChange={(e) => setSelfRatings((prev) => ({ ...prev, [key]: Number(e.target.value) || 1 }))}
-                        style={{ width: 56, ...inputBase, fontSize: 11, padding: "4px 6px" }}
-                      />
-                    </label>
+                    <div key={key} style={{ border: "1px solid rgba(59,130,246,0.15)", background: "#fff", borderRadius: 10, padding: 8, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#1e3a8a", lineHeight: 1.35 }}>{formatRubricLabel(key)}</p>
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        {[1, 2, 3, 4, 5].map((score) => (
+                          <button
+                            key={score}
+                            onClick={() => {
+                              setSelfRatings((prev) => ({ ...prev, [key]: score }));
+                              setSelfRatingsCompleted(false);
+                            }}
+                            style={{
+                              border: "1px solid rgba(59,130,246,0.2)",
+                              background: Number(value) === score ? "rgba(59,130,246,0.18)" : "#fff",
+                              color: Number(value) === score ? "#1e3a8a" : "#334155",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {score}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
                   <button onClick={saveSelfRatings} style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px" }}>
                     {copy.self_rate_send}
                   </button>
@@ -1661,7 +1711,7 @@ export default function ScreeningRoomPage() {
               </div>
             )}
 
-            {isSessionLive && !isGeneralLaborPath && (
+            {sessionDone && !isGeneralLaborPath && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",
@@ -1674,36 +1724,94 @@ export default function ScreeningRoomPage() {
                 <p style={{ margin: "4px 0 8px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
                   {copy.prior_work_sub}
                 </p>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <label style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px", cursor: "pointer" }}>
-                    {copy.prior_work_upload}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      style={{ display: "none" }}
-                      onChange={(e) => handlePriorWorkFiles(e.target.files)}
-                    />
-                  </label>
+                {priorWorkLocked ? (
+                  <div style={{
+                    border: "1px solid rgba(59,130,246,0.22)",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.85)",
+                    padding: 10,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}>
+                    <p style={{ margin: 0, fontSize: 12, color: "#1e3a8a", fontWeight: 600 }}>
+                      {priorWorkSkipped ? copy.prior_work_skipped : copy.prior_work_saved}
+                    </p>
+                    <button
+                      onClick={editPriorWork}
+                      style={{ ...iconBtn(false, "#3b82f6"), borderRadius: 10, width: "auto", height: "auto", padding: "6px 10px" }}
+                    >
+                      {copy.prior_work_edit}
+                    </button>
+                  </div>
+                ) : (
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  border: "1px dashed rgba(59,130,246,0.25)",
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.75)",
+                  padding: 10,
+                }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{ ...iconBtn(false, "#3b82f6"), borderRadius: 10, width: "auto", height: "auto", padding: "7px 10px", cursor: "pointer" }}>
+                      {copy.prior_work_upload}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        style={{ display: "none" }}
+                        onChange={(e) => handlePriorWorkFiles(e.target.files)}
+                      />
+                    </label>
+                    <button
+                      onClick={skipPriorWork}
+                      style={{
+                        border: "1px solid rgba(100,116,139,0.26)",
+                        background: "#ffffff",
+                        color: "#475569",
+                        borderRadius: 10,
+                        padding: "7px 10px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {copy.prior_work_skip}
+                    </button>
+                    {!!priorWorkImages.length && !priorWorkSkipped && (
+                      <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 600 }}>
+                        {copy.prior_work_selected(priorWorkImages.length)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     value={priorWorkNote}
                     onChange={(e) => setPriorWorkNote(e.target.value)}
                     placeholder={copy.prior_work_note_ph}
-                    style={{ ...inputBase, minWidth: 220, fontSize: 12 }}
+                    style={{ ...inputBase, fontSize: 12 }}
                   />
-                  <button
-                    onClick={submitPriorWork}
-                    disabled={!priorWorkImages.length}
-                    style={{
-                      ...iconBtn(false, "#3b82f6"),
-                      padding: "6px 12px",
-                      opacity: priorWorkImages.length ? 1 : 0.5,
-                      cursor: priorWorkImages.length ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    {copy.prior_work_send}
-                  </button>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={submitPriorWork}
+                      disabled={!priorWorkImages.length || priorWorkSkipped}
+                      style={{
+                        ...iconBtn(false, "#3b82f6"),
+                        borderRadius: 10,
+                        width: "auto",
+                        height: "auto",
+                        padding: "7px 12px",
+                        opacity: priorWorkImages.length && !priorWorkSkipped ? 1 : 0.5,
+                        cursor: priorWorkImages.length && !priorWorkSkipped ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {copy.prior_work_send}
+                    </button>
+                  </div>
                 </div>
+                )}
                 {priorWorkStatus && (
                   <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{priorWorkStatus}</p>
                 )}
@@ -1723,29 +1831,49 @@ export default function ScreeningRoomPage() {
                 <p style={{ margin: "4px 0 8px", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
                   {copy.portfolio_sub}
                 </p>
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <label style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px", cursor: "pointer" }}>
-                    {copy.prior_work_upload}
-                    <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handlePortfolioFiles(e.target.files)} />
-                  </label>
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  border: "1px dashed rgba(59,130,246,0.2)",
+                  borderRadius: 12,
+                  background: "rgba(255,255,255,0.75)",
+                  padding: 10,
+                }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{ ...iconBtn(false, "#3b82f6"), borderRadius: 10, width: "auto", height: "auto", padding: "7px 10px", cursor: "pointer" }}>
+                      {copy.prior_work_upload}
+                      <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => handlePortfolioFiles(e.target.files)} />
+                    </label>
+                    {!!portfolioImages.length && (
+                      <span style={{ fontSize: 11, color: "#1e3a8a", fontWeight: 600 }}>
+                        {copy.prior_work_selected(portfolioImages.length)}
+                      </span>
+                    )}
+                  </div>
                   <input
                     value={portfolioNote}
                     onChange={(e) => setPortfolioNote(e.target.value)}
                     placeholder={copy.prior_work_note_ph}
-                    style={{ ...inputBase, minWidth: 220, fontSize: 12 }}
+                    style={{ ...inputBase, fontSize: 12 }}
                   />
-                  <button
-                    onClick={submitPortfolio}
-                    disabled={!portfolioImages.length}
-                    style={{
-                      ...iconBtn(false, "#3b82f6"),
-                      padding: "6px 12px",
-                      opacity: portfolioImages.length ? 1 : 0.5,
-                      cursor: portfolioImages.length ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    {copy.portfolio_send}
-                  </button>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={submitPortfolio}
+                      disabled={!portfolioImages.length}
+                      style={{
+                        ...iconBtn(false, "#3b82f6"),
+                        borderRadius: 10,
+                        width: "auto",
+                        height: "auto",
+                        padding: "7px 12px",
+                        opacity: portfolioImages.length ? 1 : 0.5,
+                        cursor: portfolioImages.length ? "pointer" : "not-allowed",
+                      }}
+                    >
+                      {copy.portfolio_send}
+                    </button>
+                  </div>
                 </div>
                 {portfolioStatus && <p style={{ margin: "6px 0 0", fontSize: 11, color: "#475569" }}>{portfolioStatus}</p>}
               </div>
@@ -1757,26 +1885,28 @@ export default function ScreeningRoomPage() {
               background: "#ffffff",
               flexShrink: 0,
             }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(59,130,246,0.78)" }}>
                     {copy.voice_capture}
                   </p>
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748b", lineHeight: 1.5 }}>
-                    {integrityPaused ? copy.status_paused : isListening ? copy.status_recording : isSessionLive ? copy.status_tap_mic : copy.status_start_session}
+                    {requiresSelfRatings
+                      ? copy.self_rate_gate_msg
+                      : integrityPaused ? copy.status_paused : isListening ? copy.status_recording : isSessionLive ? copy.status_tap_mic : copy.status_start_session}
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button
                     onClick={startVoiceInput}
-                    disabled={!isSessionLive || integrityPaused}
+                    disabled={!isSessionLive || integrityPaused || requiresSelfRatings}
                     title="Start voice capture"
                     className="srp-mic-btn"
                     style={{
                       ...iconBtn(isListening, "#3b82f6"),
                       width: 48,
                       height: 48,
-                      opacity: !isSessionLive ? 0.35 : 1,
+                      opacity: (!isSessionLive || requiresSelfRatings) ? 0.35 : 1,
                       animation: isListening ? "orbPulse 1s ease-in-out infinite" : "none",
                     }}
                   >
@@ -1785,8 +1915,9 @@ export default function ScreeningRoomPage() {
                   {isSessionLive && (
                     <button
                       onClick={() => setShowTextFallback(p => !p)}
+                      disabled={requiresSelfRatings}
                       title="Type response instead"
-                      style={{ ...iconBtn(showTextFallback), width: 32, height: 32, fontSize: 13, fontWeight: 700 }}
+                      style={{ ...iconBtn(showTextFallback), width: 32, height: 32, fontSize: 13, fontWeight: 700, opacity: requiresSelfRatings ? 0.35 : 1 }}
                     >
                       Aa
                     </button>
@@ -1843,20 +1974,6 @@ export default function ScreeningRoomPage() {
                 data-testid="worker-live-video"
                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transform: "scaleX(-1)" }}
               />
-              {handOverlayOn && (
-                <canvas
-                  ref={handCanvasRef}
-                  aria-hidden="true"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    pointerEvents: "none",
-                    transform: "scaleX(-1)",
-                  }}
-                />
-              )}
 
               {/* camera error */}
               {cameraError && (
@@ -1953,25 +2070,6 @@ export default function ScreeningRoomPage() {
                 {integrityReady ? <ShieldCheck size={11} /> : <ShieldAlert size={11} />}
                 {integrityReady ? copy.ai_monitor_on : copy.ai_monitor_off}
               </div>
-
-              <button
-                className="srp-video-badge"
-                onClick={() => setHandOverlayOn((prev) => !prev)}
-                style={{
-                  position: "absolute", top: 46, right: 14,
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "5px 11px", borderRadius: 20,
-                  background: "rgba(0,0,0,0.55)", backdropFilter: "blur(10px)",
-                  border: `1px solid ${handOverlayOn ? "rgba(34,197,94,0.5)" : "rgba(255,255,255,0.07)"}`,
-                  fontSize: 10, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase",
-                  color: handOverlayOn ? "#bbf7d0" : "#334155",
-                  cursor: "pointer",
-                }}
-                aria-pressed={handOverlayOn}
-                title="Toggle hand landmarks"
-              >
-                {handOverlayOn ? copy.hands_on : copy.hands_off}
-              </button>
 
               {/* ── Floating mic button on camera — mobile only ── */}
               <div className="srp-mobile-mic-float" style={{

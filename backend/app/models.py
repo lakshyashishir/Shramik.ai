@@ -126,6 +126,7 @@ class Session(BaseModel):
     phase0_completed: bool = False
     portfolio_enrichment: List[PortfolioItem] = Field(default_factory=list)
     labor_pool_profile: Dict[str, Any] = Field(default_factory=dict)
+    recruiter_decision: Dict[str, Any] = Field(default_factory=dict)
     # Phone-call fields
     interview_mode: str = "web"
     call_provider: Optional[str] = None
