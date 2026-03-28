@@ -405,7 +405,7 @@ function TranscriptMsg({ line }) {
   );
 }
 /* ─── Voice Onboarding Screen ────────────────────────────────── */
-function VoiceOnboardingScreen({ onComplete, onSkip }) {
+function VoiceOnboardingScreen({ onComplete, onSkip, resetTrigger }) {
   const { locale, setLocale } = useLanguage();
   const copy = SRP_COPY.hi; // onboarding always starts in Hindi
   const [phase, setPhase] = useState("intro"); // intro | listening | processing | confirm | error
@@ -415,6 +415,10 @@ function VoiceOnboardingScreen({ onComplete, onSkip }) {
   const recRef = useRef(null);
   const introPlayedRef = useRef(false);
   const introAudioRef = useRef(null);
+
+  useEffect(() => {
+    if (resetTrigger > 0) setPhase("intro");
+  }, [resetTrigger]);
 
   // Force Hindi for the onboarding screen regardless of cached locale
   useEffect(() => { setLocale("hi"); }, []);
@@ -720,6 +724,7 @@ export default function ScreeningRoomPage() {
   const copy = SRP_COPY[locale] ?? SRP_COPY.en;
   const { role } = useRole();
   const [voiceOnboardingDone, setVoiceOnboardingDone] = useState(false);
+  const [vobResetTrigger, setVobResetTrigger] = useState(0);
   const [workers, setWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [workerDraft, setWorkerDraft] = useState(defaultWorker);
@@ -1268,12 +1273,13 @@ export default function ScreeningRoomPage() {
   };
 
   const handleVoiceOnboardComplete = async (workerData) => {
-    setVoiceOnboardingDone(true);
+    // Keep blue screen visible while session is being created
     setIsSubmitting(true);
     try {
       const safeAssignment = assignment.trim().length >= 8 ? assignment.trim() : defaultAssignment;
       const started = await screeningApi.startSession({ worker_id: workerData.id, assignment: safeAssignment }, locale);
       resetIntegrityState();
+      setVoiceOnboardingDone(true); // hide blue screen only after session is ready
       setSession(started.session); setIntegrityLog(started.session.integrity_log || null);
       setCurrentQuestion(started.first_question); setLiveScore(started.session.live_score);
       setTranscript(started.session.transcript || []); setSessionDone(false); setSetupOpen(false);
@@ -1288,8 +1294,7 @@ export default function ScreeningRoomPage() {
       const detail = err?.response?.data?.detail;
       const msg = Array.isArray(detail) ? (detail[0]?.msg || "Session validation failed.") : (detail || "Could not start screening session.");
       toast.error(String(msg));
-      setVoiceOnboardingDone(false);
-      setSetupOpen(true);
+      setVobResetTrigger((n) => n + 1); // reset blue screen to intro so user can try again
     } finally { setIsSubmitting(false); }
   };
 
@@ -1354,6 +1359,7 @@ export default function ScreeningRoomPage() {
         <VoiceOnboardingScreen
           onComplete={handleVoiceOnboardComplete}
           onSkip={() => { setVoiceOnboardingDone(true); setSetupOpen(true); }}
+          resetTrigger={vobResetTrigger}
         />
       )}
 
