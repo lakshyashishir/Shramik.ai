@@ -389,68 +389,63 @@ export default function WorkerProfilePage() {
       {/* ── Hero card ─────────────────────────────────────────────── */}
       <Card style={{
         marginBottom: 20,
-        background: "linear-gradient(135deg, #05102a 0%, #0c1e45 100%)",
+        background: "#ffffff",
         border: `1px solid ${tier.border}`,
-        boxShadow: `0 0 60px ${tier.border}, 0 32px 80px rgba(5,10,26,0.5)`,
-        color: "#fff",
         position: "relative",
         overflow: "hidden",
       }}>
-        {/* Tier glow strip */}
-        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, transparent, ${tier.color}, transparent)` }} />
+        {/* Tier colour strip */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(90deg, transparent, ${tier.color}, transparent)` }} />
 
         <div style={{ display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
           <Avatar name={passport.worker_name} size={88} />
 
           <div style={{ flex: 1, minWidth: 200 }}>
-            {/* Name + badges */}
+            {/* Name + integrity badge */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
-              <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(1.4rem,4vw,2rem)", margin: 0, color: "#fff" }}>
+              <h1 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(1.4rem,4vw,2rem)", margin: 0, color: "#23314f" }}>
                 {passport.worker_name}
               </h1>
-              {/* Integrity badge */}
-              <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: `${intFl.color}18`, color: intFl.color, border: `1px solid ${intFl.color}40`, letterSpacing: 0.8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: `${intFl.color}14`, color: intFl.color, border: `1px solid ${intFl.color}40`, letterSpacing: 0.8 }}>
                 {isHi ? intFl.labelHi : intFl.label}
               </span>
             </div>
 
-            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", margin: "0 0 12px" }}>
+            <p style={{ fontSize: 14, color: "#64748b", margin: "0 0 12px" }}>
               {passport.specialization} · {passport.experience_years} {isHi ? "साल का अनुभव" : "yrs experience"}
             </p>
 
-            {/* Tier badge + description */}
+            {/* Tier badge */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-              <div style={{ padding: "6px 14px", borderRadius: 999, background: tier.bg, border: `1px solid ${tier.border}`, display: "flex", alignItems: "center", gap: 6, boxShadow: `0 0 18px ${tier.border}` }}>
+              <div style={{ padding: "5px 14px", borderRadius: 999, background: tier.bg, border: `1px solid ${tier.border}`, display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 14 }}>{tier.icon}</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: tier.color, letterSpacing: 1.5, textTransform: "uppercase" }}>
-                  {passport.tier}
-                </span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: tier.color, letterSpacing: 1.5, textTransform: "uppercase" }}>{passport.tier}</span>
               </div>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", margin: "6px 0 0", flex: 1, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: "#94a3b8", margin: "5px 0 0", flex: 1, lineHeight: 1.5 }}>
                 {tier.desc[locale] ?? tier.desc.en}
               </p>
             </div>
 
-            {/* Stats row */}
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+            {/* Trust signals */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {[
-                { label: isHi ? "Sessions" : "Screenings", value: passport.sessions_completed },
-                { label: isHi ? "सर्वश्रेष्ठ स्कोर" : "Best Score", value: `${passport.best_score}%` },
-                { label: isHi ? "Channel" : "Channel", value: CHANNEL[passport.channel] ?? "🌐 Web" },
-                { label: isHi ? "अनुशंसा" : "Status", value: isHi ? (rec.labelHi ?? rec.label) : rec.label, color: rec.color },
-              ].map(({ label, value, color }) => (
-                <div key={label}>
-                  <p style={{ fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(255,255,255,0.35)", margin: "0 0 2px" }}>{label}</p>
-                  <p style={{ fontSize: 16, fontWeight: 800, margin: 0, color: color ?? "rgba(255,255,255,0.9)" }}>{value}</p>
+                { icon: "✅", label: isHi ? "Jobs पूरे किए" : "Jobs Completed", value: passport.sessions_completed },
+                { icon: "⭐", label: isHi ? "Karma" : "Karma Score", value: passport.karma },
+                { icon: "🎯", label: isHi ? "सर्वश्रेष्ठ स्कोर" : "Best Score", value: `${passport.best_score}%` },
+                { icon: "🛡️", label: isHi ? "Integrity" : "Integrity", value: isHi ? intFl.labelHi : intFl.label, color: intFl.color },
+              ].map(({ icon, label, value, color }) => (
+                <div key={label} style={{ background: "rgba(35,49,79,0.04)", border: "1px solid rgba(35,49,79,0.08)", borderRadius: 10, padding: "7px 12px", minWidth: 80 }}>
+                  <p style={{ fontSize: 9, letterSpacing: 1.2, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 3px" }}>{icon} {label}</p>
+                  <p style={{ fontSize: 15, fontWeight: 800, margin: 0, color: color ?? "#23314f" }}>{value}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Karma ring */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <KarmaBadge karma={passport.karma} size="lg" showTier={false} dark />
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", letterSpacing: 1, textTransform: "uppercase" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <KarmaBadge karma={passport.karma} size="lg" showTier={false} />
+            <span style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 1, textTransform: "uppercase" }}>
               {isHi ? "Karma Score" : "Karma Score"}
             </span>
           </div>
@@ -501,38 +496,16 @@ export default function WorkerProfilePage() {
       )}
 
       {/* ── Work Portfolio ───────────────────────────────────────── */}
-      <Card style={{ marginTop: 16 }}>
-        <SectionTitle>{isHi ? "काम की झलक" : "Work Portfolio"}</SectionTitle>
-
-        {/* AI-assessed snapshots from sessions */}
-        {passport.portfolio_snapshots?.length > 0 && (
-          <>
-            <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
-              {isHi ? "AI-मूल्यांकित snapshots" : "AI-assessed snapshots from screening"}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
-              {passport.portfolio_snapshots.map((item, i) => (
-                <PortfolioCard key={i} item={item} index={i} />
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* Portfolio enrichment items */}
-        {passport.portfolio_enrichment?.length > 0 && (
-          <>
-            <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
-              {isHi ? "Portfolio Items" : "Portfolio Items"}
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
-              {passport.portfolio_enrichment.map((item, i) => (
-                <PortfolioCard key={i} item={item} index={i} />
-              ))}
-            </div>
-          </>
-        )}
-
-      </Card>
+      {passport.portfolio_enrichment?.length > 0 && (
+        <Card style={{ marginTop: 16 }}>
+          <SectionTitle>{isHi ? "काम की झलक" : "Work Portfolio"}</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+            {passport.portfolio_enrichment.map((item, i) => (
+              <PortfolioCard key={i} item={item} index={i} />
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ── Session history ──────────────────────────────────────── */}
       {passport.session_history?.length > 0 && (
