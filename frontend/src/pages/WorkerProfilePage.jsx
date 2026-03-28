@@ -417,6 +417,9 @@ export default function WorkerProfilePage() {
   const [passport, setPassport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showHireModal, setShowHireModal] = useState(false);
+  const [hireForm, setHireForm] = useState({ name: "", email: "", project: "", date: "", budget: "" });
+  const [hireSent, setHireSent] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -669,6 +672,7 @@ export default function WorkerProfilePage() {
             {isHi ? "Profile link copy करें" : "Copy Profile Link"}
           </button>
           <button
+            onClick={() => { setHireForm({ name: "", email: "", project: "", date: "", budget: "" }); setHireSent(false); setShowHireModal(true); }}
             style={{ padding: "11px 22px", borderRadius: 999, border: "none", background: "#23314f", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
           >
             {isHi ? "Hire Request भेजें" : "Send Hire Request"}
@@ -677,5 +681,46 @@ export default function WorkerProfilePage() {
       </Card>
 
     </main>
+
+      {showHireModal && (
+        <div onClick={() => setShowHireModal(false)} style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18,24,39,0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480, background: "#fff", borderRadius: "28px 28px 0 0", padding: "28px 24px 32px", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)", position: "relative", maxHeight: "92dvh", overflowY: "auto" }}>
+            <button onClick={() => setShowHireModal(false)} style={{ position: "absolute", top: 16, right: 18, border: "none", background: "none", color: "#94a3b8", fontSize: 22, cursor: "pointer" }}>×</button>
+            {!hireSent ? (
+              <>
+                <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#3b82f6", margin: "0 0 6px" }}>{isHi ? "Hire Request" : "Hire Request"}</p>
+                <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: "#23314f", margin: "0 0 6px" }}>{passport.worker_name}</h2>
+                <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 18px" }}>{passport.specialization}</p>
+                {[
+                  { label: isHi ? "आपका नाम" : "Your Name", key: "name", type: "text", placeholder: isHi ? "पूरा नाम" : "Full name" },
+                  { label: isHi ? "ईमेल" : "Email", key: "email", type: "email", placeholder: "your@email.com" },
+                  { label: isHi ? "Project Details" : "Project Details", key: "project", type: "textarea", placeholder: isHi ? "काम का विवरण..." : "Describe the work..." },
+                  { label: isHi ? "शुरुआत की तारीख" : "Preferred Start Date", key: "date", type: "date", placeholder: "" },
+                  { label: isHi ? "बजट" : "Budget", key: "budget", type: "text", placeholder: isHi ? "जैसे ₹500/दिन" : "e.g. ₹500/day" },
+                ].map((field) => (
+                  <div key={field.key} style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: "#23314f", display: "block", marginBottom: 6 }}>{field.label}</label>
+                    {field.type === "textarea" ? (
+                      <textarea value={hireForm[field.key]} onChange={(e) => setHireForm((p) => ({ ...p, [field.key]: e.target.value }))} placeholder={field.placeholder} rows={3} style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(35,49,79,0.15)", padding: "9px 12px", fontSize: 13, fontFamily: "inherit", resize: "none", outline: "none", boxSizing: "border-box" }} />
+                    ) : (
+                      <input type={field.type} value={hireForm[field.key]} onChange={(e) => setHireForm((p) => ({ ...p, [field.key]: e.target.value }))} placeholder={field.placeholder} style={{ width: "100%", borderRadius: 10, border: "1px solid rgba(35,49,79,0.15)", padding: "9px 12px", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }} />
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => hireForm.name && hireForm.email && hireForm.project && setHireSent(true)} style={{ width: "100%", padding: 13, borderRadius: 999, border: "none", background: "#23314f", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                  {isHi ? "Request भेजें" : "Send Hire Request"}
+                </button>
+              </>
+            ) : (
+              <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
+                <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#22c55e", margin: 0 }}>{isHi ? "Request भेजी गई" : "Request Sent"}</p>
+                <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: "#23314f", margin: "8px 0" }}>{isHi ? "हो गया!" : "Done!"}</h2>
+                <p style={{ fontSize: 14, color: "#64748b", lineHeight: 1.7 }}>{passport.worker_name} {isHi ? "को जल्द संपर्क किया जाएगा।" : "will receive your request shortly."}</p>
+                <button onClick={() => setShowHireModal(false)} style={{ marginTop: 18, padding: "11px 24px", borderRadius: 999, border: "none", background: "#23314f", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{isHi ? "बंद करें" : "Close"}</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
   );
 }
