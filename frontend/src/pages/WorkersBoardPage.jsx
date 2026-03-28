@@ -579,6 +579,7 @@ export default function WorkersBoardPage() {
   const [postForm, setPostForm] = useState({ title: "", skill: "Alterations", budget: "", description: "" });
   const [postedJobs, setPostedJobs] = useState([]);
   const [jobPosted, setJobPosted] = useState(false);
+  const [workerLocFilter, setWorkerLocFilter] = useState("All Locations");
   const [jobLocFilter, setJobLocFilter] = useState("All Locations");
   const [jobAvailFilter, setJobAvailFilter] = useState("All");
   const [appliedJobs, setAppliedJobs] = useState({});
@@ -622,6 +623,7 @@ export default function WorkersBoardPage() {
     return allWorkers
       .filter((w) => activeSkill === "All" || (w.specialization || "").includes(activeSkill) || (w.skills ?? []).includes(activeSkill))
       .filter((w) => !search || w.name.toLowerCase().includes(search.toLowerCase()) || (w.specialization || "").toLowerCase().includes(search.toLowerCase()))
+      .filter((w) => workerLocFilter === "All Locations" || (w.location || "").includes(workerLocFilter))
       .sort((a, b) => {
         if (sortBy === "karma") {
           const ka = karmaMap[a.id]?.karma ?? (a.rating ? a.rating * 100 : 0);
@@ -632,7 +634,7 @@ export default function WorkersBoardPage() {
         if (sortBy === "rate_desc") return (b.hourlyRate ?? 0) - (a.hourlyRate ?? 0);
         return 0;
       });
-  }, [allWorkers, activeSkill, search, sortBy, karmaMap]);
+  }, [allWorkers, activeSkill, search, sortBy, karmaMap, workerLocFilter]);
 
   const filteredJobs = useMemo(() => {
     return postedJobs.filter((job) => {
@@ -720,6 +722,9 @@ export default function WorkersBoardPage() {
                   placeholder={copy.searchPlaceholder}
                   style={{ ...inputStyle, flex: "1 1 220px", minWidth: 0 }}
                 />
+                <select value={workerLocFilter} onChange={(e) => setWorkerLocFilter(e.target.value)} style={{ ...inputStyle, flex: "0 0 auto", cursor: "pointer" }}>
+                  {JOB_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                </select>
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ ...inputStyle, flex: "0 0 auto", cursor: "pointer" }}>
                   <option value="karma">{copy.sortTop}</option>
                   <option value="rate_asc">{copy.sortAsc}</option>
