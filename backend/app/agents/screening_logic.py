@@ -298,14 +298,14 @@ _ENGLISH_DIRECTIVE = (
 PHASE0_FIELDS = ["name", "age", "sex", "address", "tradeRaw", "yearsExp"]
 
 
-def init_phase0_profile(worker_name: str, trade_raw: str) -> dict:
+def init_phase0_profile(worker_name: str, trade_raw: str, experience_years: int | None = None) -> dict:
     return {
         "name": worker_name.strip() if worker_name else "",
         "age": None,
         "sex": None,
         "address": None,
         "tradeRaw": trade_raw.strip() if trade_raw else "",
-        "yearsExp": None,
+        "yearsExp": experience_years if experience_years is not None else None,
     }
 
 

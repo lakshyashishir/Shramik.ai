@@ -337,7 +337,7 @@ async def start_session(
         assignment = ASSIGNMENT_TEMPLATES.get(domain, DEFAULT_ASSIGNMENT)
 
     first_question = choose_opening_question(worker.name, assignment, locale, domain)
-    phase0_profile = init_phase0_profile(worker.name, worker.specialization)
+    phase0_profile = init_phase0_profile(worker.name, worker.specialization, worker.experience_years)
     phase0_completed = len(phase0_missing_fields(phase0_profile)) == 0
 
     session = Session(

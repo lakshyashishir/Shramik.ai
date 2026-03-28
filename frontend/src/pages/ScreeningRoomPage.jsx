@@ -1616,6 +1616,15 @@ export default function ScreeningRoomPage() {
                 <p style={{ fontSize: "clamp(13px,1.6vw,15px)", color: "#71675d", lineHeight: 1.75, margin: 0, minHeight: 42 }}>
                   {currentQuestion || (session ? copy.waiting_ai : copy.setup_to_begin)}
                 </p>
+                {currentQuestion && !aiSpeaking && (
+                  <button
+                    onClick={() => speakAi(currentQuestion)}
+                    title="Replay question"
+                    style={{ marginTop: 6, background: "none", border: "none", cursor: "pointer", color: "rgba(59,130,246,0.7)", fontSize: 18, padding: "2px 6px" }}
+                  >
+                    🔊
+                  </button>
+                )}
                 {session && (
                   <p style={{ margin: "8px 0 0", fontSize: 11, color: "#64748b" }}>
                     {session.phase0_completed ? "Phase 0 intake complete" : "Phase 0 intake in progress"}
@@ -1685,7 +1694,7 @@ export default function ScreeningRoomPage() {
                   ))}
                 </div>
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-                  <button onClick={saveSelfRatings} style={{ ...iconBtn(false, "#3b82f6"), padding: "6px 10px" }}>
+                  <button onClick={saveSelfRatings} style={{ background: "rgba(59,130,246,0.12)", color: "#1e3a8a", border: "1px solid rgba(59,130,246,0.25)", borderRadius: 8, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     {copy.self_rate_send}
                   </button>
                 </div>
