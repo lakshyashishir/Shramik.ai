@@ -119,6 +119,7 @@ async def get_passport(worker_id: str, db: AsyncSession = Depends(get_db)):
                 "feedback": snap.feedback,
                 "quality_score": snap.quality_score,
                 "focus_areas": snap.focus_areas,
+                "image_url": snap.image_url,
             })
         for item in (s.portfolio_enrichment or []):
             portfolio_enrichment.append({
@@ -126,6 +127,7 @@ async def get_passport(worker_id: str, db: AsyncSession = Depends(get_db)):
                 "vision_summary": item.vision_summary,
                 "complexity": item.complexity,
                 "captured_at": item.captured_at,
+                "image_url": getattr(item, "image_url", None),
             })
         for item in (s.prior_work_media or []):
             prior_work.append({

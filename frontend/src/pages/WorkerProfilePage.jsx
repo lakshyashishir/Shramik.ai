@@ -304,114 +304,6 @@ function SectionTitle({ children }) {
   return <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94a3b8", margin: "0 0 14px" }}>{children}</p>;
 }
 
-/* ── Passport data for fallback workers ──────────────────────────── */
-const DEMO_PASSPORTS = {
-  demo_1: {
-    worker_id: "demo_1", worker_name: "Priya Mehra", specialization: "Bridal Wear",
-    experience_years: 9, karma: 720, tier: "Gold", skill_score: 0.88, integrity_score: 0.95,
-    rubric_scores: { stitch_quality: 91, machine_familiarity: 85, technical_knowledge: 88, fabric_material_knowledge: 84, communication_confidence: 78 },
-    summary: "Priya demonstrates exceptional expertise in bridal wear and zardozi embroidery. Her stitch quality is consistently excellent and she shows deep knowledge of traditional techniques combined with modern finishing standards.",
-    recommendation: "pass", integrity_flag: "clear", channel: "web",
-    components: { skill: 264, integrity: 190, reputation: 150, reliability: 70, growth: 35, community: 11 },
-    sessions_completed: 4, best_score: 91, all_scores: [91, 87, 83, 79],
-    portfolio_snapshots: [
-      {
-        captured_at: "2025-12-01",
-        feedback: "Intricate zardozi embroidery — gold thread tension perfect throughout",
-        quality_score: 91,
-        focus_areas: ["embroidery density", "thread tension"],
-        image_url: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=400&q=80",
-      },
-      {
-        captured_at: "2025-10-15",
-        feedback: "Clean hemline with consistent 5mm margin, no fraying visible",
-        quality_score: 88,
-        focus_areas: ["hem finishing", "edge quality"],
-        image_url: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
-      },
-      {
-        captured_at: "2025-08-20",
-        feedback: "Detailed mirror-work panel, alignment consistent across motifs",
-        quality_score: 85,
-        focus_areas: ["mirror placement", "seam tension"],
-        image_url: "https://images.unsplash.com/photo-1612195583950-b8fd34c87093?w=400&q=80",
-      },
-      {
-        captured_at: "2026-02-14",
-        feedback: "Precise measurement snapshot — seam allowance marked at 15mm, consistent across all panels",
-        quality_score: 93,
-        focus_areas: ["measurement accuracy", "seam marking"],
-        image_url: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&q=80",
-      },
-    ],
-    portfolio_enrichment: [
-      {
-        note: "Bridal lehenga with mirror work",
-        vision_summary: "Intricate hand-embroidery with gold thread on red dupion silk — ceremonial grade",
-        complexity: "high",
-        captured_at: "2025-11-20",
-        image_url: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80",
-      },
-      {
-        note: "Saree border embroidery — custom order",
-        vision_summary: "Dense floral motifs along 6m silk border, antique gold thread, zari finish",
-        complexity: "high",
-        captured_at: "2025-09-05",
-        image_url: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=400&q=80",
-      },
-    ],
-    prior_work: [
-      { note: "Wedding collection 2024", vision_summary: "10-piece bridal collection — gota patti and zardozi", relevance_flag: "highly_relevant" },
-    ],
-    session_history: [
-      { id: "s1", status: "completed", score: 91, recommendation: "pass", channel: "web", ended_at: "2025-12-01" },
-      { id: "s2", status: "completed", score: 87, recommendation: "pass", channel: "web", ended_at: "2025-10-15" },
-      { id: "s3", status: "completed", score: 83, recommendation: "pass", channel: "web", ended_at: "2025-08-20" },
-      { id: "s4", status: "completed", score: 79, recommendation: "pass", channel: "web", ended_at: "2025-06-10" },
-    ],
-  },
-  demo_2: {
-    worker_id: "demo_2", worker_name: "Nisha Patel", specialization: "Children's Wear",
-    experience_years: 5, karma: 480, tier: "Silver", skill_score: 0.74, integrity_score: 0.90,
-    rubric_scores: { stitch_quality: 76, machine_familiarity: 79, technical_knowledge: 72, fabric_material_knowledge: 70, communication_confidence: 82 },
-    summary: "Nisha shows solid competency in children's garment production and uniform stitching. She handles multiple fabric types well and demonstrates good process knowledge for small-batch custom orders.",
-    recommendation: "pass", integrity_flag: "clear", channel: "whatsapp",
-    components: { skill: 166, integrity: 180, reputation: 70, reliability: 45, growth: 14, community: 5 },
-    sessions_completed: 2, best_score: 76, all_scores: [76, 71],
-    portfolio_snapshots: [
-      {
-        captured_at: "2026-01-10",
-        feedback: "School uniform shirt — consistent seam allowance, clean collar attach",
-        quality_score: 76,
-        focus_areas: ["seam straightness", "collar finish"],
-        image_url: "https://images.unsplash.com/photo-1619086303291-0ef7699e4b31?w=400&q=80",
-      },
-      {
-        captured_at: "2025-11-22",
-        feedback: "Children's kurta set — even stitching on curved hem",
-        quality_score: 71,
-        focus_areas: ["curve control", "edge finishing"],
-        image_url: "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=400&q=80",
-      },
-    ],
-    portfolio_enrichment: [
-      {
-        note: "School uniform batch x50",
-        vision_summary: "Cotton blend shirts and trousers in standard sizes 6–14, flat-felled seams",
-        complexity: "medium",
-        captured_at: "2026-01-10",
-        image_url: "https://images.unsplash.com/photo-1503342394128-c104d54dba01?w=400&q=80",
-      },
-    ],
-    prior_work: [
-      { note: "School uniform contract Jan 2026", vision_summary: "50 sets, cotton blend, standard sizing", relevance_flag: "relevant" },
-    ],
-    session_history: [
-      { id: "s3", status: "completed", score: 76, recommendation: "pass", channel: "whatsapp", ended_at: "2026-01-10" },
-      { id: "s4", status: "completed", score: 71, recommendation: "pass", channel: "whatsapp", ended_at: "2025-11-22" },
-    ],
-  },
-};
 
 /* ── Main page ───────────────────────────────────────────────────── */
 export default function WorkerProfilePage() {
@@ -430,11 +322,6 @@ export default function WorkerProfilePage() {
 
   useEffect(() => {
     if (!id) return;
-    if (DEMO_PASSPORTS[id]) {
-      setPassport(DEMO_PASSPORTS[id]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     screeningApi.getPassport(id)
       .then(setPassport)

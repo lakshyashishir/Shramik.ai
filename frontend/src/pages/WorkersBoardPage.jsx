@@ -33,38 +33,6 @@ const SKILLS = [
 ];
 
 // Fallback workers shown when API has no data yet
-const DEMO_WORKERS = [
-  {
-    id: "demo_1",
-    name: "Priya Mehra",
-    location: "Roorkee, Uttarakhand",
-    specialization: "Bridal Wear",
-    experience_years: 9,
-    rating: 4.9,
-    reviews: 142,
-    skills: ["Bridal Wear", "Embroidery", "Pattern Making"],
-    bio: "Crafting heirloom-quality bridal pieces with intricate zardozi embroidery for over 9 years.",
-    available: true,
-    completedJobs: 318,
-    hourlyRate: 950,
-    color: "#3b82f6",
-  },
-  {
-    id: "demo_2",
-    name: "Nisha Patel",
-    location: "Roorkee, Uttarakhand",
-    specialization: "Children's Wear",
-    experience_years: 5,
-    rating: 4.7,
-    reviews: 93,
-    skills: ["Children's Wear", "Alterations", "Embroidery"],
-    bio: "Making durable and comfortable garments for children, school uniforms, and small-batch custom orders.",
-    available: true,
-    completedJobs: 197,
-    hourlyRate: 720,
-    color: "#2563eb",
-  },
-];
 
 const FALLBACK_JOBS = [
   { id: "f1", title: "Production Tailor — Garment Factory", budget: "Rs. 14,000–18,000/month", skill: "Industrial Stitching", location: "Roorkee, Uttarakhand", availability: "Immediate", posted_at: new Date(Date.now() - 2 * 3600000).toISOString(), urgent: true },
@@ -616,9 +584,7 @@ export default function WorkersBoardPage() {
       .catch(() => {});
   }, []);
 
-  // Always show demo workers + any real API workers
-  const apiIds = new Set(apiWorkers.map((w) => w.id));
-  const allWorkers = [...DEMO_WORKERS.filter((w) => !apiIds.has(w.id)), ...apiWorkers];
+  const allWorkers = apiWorkers;
 
   const filtered = useMemo(() => {
     return allWorkers

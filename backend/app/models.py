@@ -41,6 +41,7 @@ class SnapshotFeedback(BaseModel):
     focus_areas: List[str]
     note: str
     vision_confidence: Optional[float] = None
+    image_url: Optional[str] = None
 
 
 class PriorWorkItem(BaseModel):
@@ -60,6 +61,7 @@ class PortfolioItem(BaseModel):
     note: str
     complexity: Literal["entry", "standard", "skilled", "complex"] = "standard"
     vision_summary: str
+    image_url: Optional[str] = None
 
 
 class IntegrityEvent(BaseModel):
