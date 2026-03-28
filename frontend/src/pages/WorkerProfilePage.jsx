@@ -336,6 +336,13 @@ const DEMO_PASSPORTS = {
         focus_areas: ["mirror placement", "seam tension"],
         image_url: "https://images.unsplash.com/photo-1612195583950-b8fd34c87093?w=400&q=80",
       },
+      {
+        captured_at: "2026-02-14",
+        feedback: "Precise measurement snapshot — seam allowance marked at 15mm, consistent across all panels",
+        quality_score: 93,
+        focus_areas: ["measurement accuracy", "seam marking"],
+        image_url: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&q=80",
+      },
     ],
     portfolio_enrichment: [
       {
@@ -638,11 +645,6 @@ export default function WorkerProfilePage() {
           </>
         )}
 
-        {/* Manual upload */}
-        <p style={{ fontSize: 11, color: "#94a3b8", marginBottom: 10 }}>
-          {isHi ? "अपना काम share करें" : "Share your own work"}
-        </p>
-        <MediaUploadPlaceholder locale={locale} />
       </Card>
 
       {/* ── Session history ──────────────────────────────────────── */}
