@@ -150,49 +150,89 @@ function KarmaBreakdown({ components, locale }) {
   );
 }
 
+/* ── Lightbox ─────────────────────────────────────────────────────── */
+function Lightbox({ src, caption, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 2000, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <img
+        src={src}
+        alt={caption}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "92vw", maxHeight: "80vh", borderRadius: 16, boxShadow: "0 24px 80px rgba(0,0,0,0.6)", objectFit: "contain" }}
+      />
+      {caption && (
+        <p onClick={(e) => e.stopPropagation()} style={{ marginTop: 16, fontSize: 13, color: "rgba(255,255,255,0.7)", maxWidth: 480, textAlign: "center", lineHeight: 1.6 }}>
+          {caption}
+        </p>
+      )}
+      <button onClick={onClose} style={{ position: "absolute", top: 20, right: 24, background: "none", border: "none", color: "#fff", fontSize: 28, cursor: "pointer", lineHeight: 1 }}>×</button>
+    </div>
+  );
+}
+
 /* ── Portfolio item ───────────────────────────────────────────────── */
 function PortfolioCard({ item }) {
   const quality = item.quality_score;
   const color = quality >= 70 ? "#22c55e" : quality >= 45 ? "#f59e0b" : "#ef4444";
   const [imgError, setImgError] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
+  const caption = item.vision_summary || item.feedback || item.note;
 
   return (
-    <div style={{
-      background: "#f8fafc", border: "1px solid #dbe4f0", borderRadius: 16,
-      overflow: "hidden", display: "flex", flexDirection: "column",
-    }}>
-      <div style={{ height: 150, position: "relative", overflow: "hidden", borderBottom: "1px solid #dbe4f0" }}>
-        {item.image_url && !imgError ? (
-          <img
-            src={item.image_url}
-            alt={item.feedback ?? item.note ?? "Portfolio"}
-            onError={() => setImgError(true)}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        ) : (
-          <div style={{
-            height: "100%", background: `linear-gradient(135deg, ${color}18, ${color}08)`,
-            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32,
-          }}>
-            🧵
-          </div>
-        )}
-        {quality != null && (
-          <span style={{
-            position: "absolute", bottom: 6, right: 6,
-            fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-            background: `${color}dd`, color: "#fff",
-          }}>
-            {Math.round(quality)}
-          </span>
-        )}
+    <>
+      {lightbox && item.image_url && !imgError && (
+        <Lightbox src={item.image_url} caption={caption} onClose={() => setLightbox(false)} />
+      )}
+      <div style={{
+        background: "#f8fafc", border: "1px solid #dbe4f0", borderRadius: 16,
+        overflow: "hidden", display: "flex", flexDirection: "column",
+      }}>
+        <div
+          onClick={() => item.image_url && !imgError && setLightbox(true)}
+          style={{ height: 150, position: "relative", overflow: "hidden", borderBottom: "1px solid #dbe4f0", cursor: item.image_url && !imgError ? "zoom-in" : "default" }}
+        >
+          {item.image_url && !imgError ? (
+            <img
+              src={item.image_url}
+              alt={caption ?? "Portfolio"}
+              onError={() => setImgError(true)}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.2s" }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.04)"}
+              onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+            />
+          ) : (
+            <div style={{
+              height: "100%", background: `linear-gradient(135deg, ${color}18, ${color}08)`,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32,
+            }}>
+              🧵
+            </div>
+          )}
+          {quality != null && (
+            <span style={{
+              position: "absolute", bottom: 6, right: 6,
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+              background: `${color}dd`, color: "#fff",
+            }}>
+              {Math.round(quality)}
+            </span>
+          )}
+        </div>
+        <div style={{ padding: "10px 12px" }}>
+          {item.feedback && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.feedback}</p>}
+          {item.vision_summary && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.vision_summary}</p>}
+          {item.note && !item.feedback && !item.vision_summary && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.note}</p>}
+        </div>
       </div>
-      <div style={{ padding: "10px 12px" }}>
-        {item.feedback && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.feedback}</p>}
-        {item.vision_summary && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.vision_summary}</p>}
-        {item.note && !item.feedback && !item.vision_summary && <p style={{ fontSize: 12, color: "#64748b", margin: 0, lineHeight: 1.5 }}>{item.note}</p>}
-      </div>
-    </div>
+    </>
   );
 }
 
