@@ -466,6 +466,7 @@ export default function WorkerProfilePage() {
   const rubricEntries = Object.entries(passport.rubric_scores ?? {}).filter(([k]) => k !== "integrity_compliance");
 
   return (
+    <>
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "clamp(16px,4vw,32px) clamp(12px,3vw,20px) 64px", fontFamily: "Manrope, sans-serif", color: "#23314f" }}>
 
       {/* Back + Edit row */}
@@ -722,5 +723,6 @@ export default function WorkerProfilePage() {
           </div>
         </div>
       )}
+    </>
   );
 }
