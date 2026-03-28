@@ -616,8 +616,9 @@ export default function WorkersBoardPage() {
       .catch(() => {});
   }, []);
 
-  // Merge: prefer API workers, fall back to demo if none
-  const allWorkers = apiWorkers.length > 0 ? apiWorkers : DEMO_WORKERS;
+  // Always show demo workers + any real API workers
+  const apiIds = new Set(apiWorkers.map((w) => w.id));
+  const allWorkers = [...DEMO_WORKERS.filter((w) => !apiIds.has(w.id)), ...apiWorkers];
 
   const filtered = useMemo(() => {
     return allWorkers
