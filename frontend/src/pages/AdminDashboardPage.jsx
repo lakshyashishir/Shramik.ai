@@ -365,7 +365,7 @@ function HumanOverride({ sessionId, current, onOverride, copy }) {
   );
 }
 
-function ReportCard({ report, override, onOverride, locale, copy }) {
+function ReportCard({ report, override, onOverride, locale, copy, onHire }) {
   const [expanded, setExpanded] = useState(false);
   const rubricScores = report.rubric_scores || {};
   const effectiveRec = override || report.recommendation || "pending";
@@ -389,6 +389,17 @@ function ReportCard({ report, override, onOverride, locale, copy }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); onHire(report); }}
+            style={{
+              padding: "5px 14px", borderRadius: 999, border: "none",
+              background: "#23314f", color: "#fff",
+              fontSize: 11, fontWeight: 700, cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Hire Now
+          </button>
           <Badge className={`border text-[11px] ${recStyle}`}>
             {effectiveRec.toUpperCase()}
             {override && <span className="ml-1 opacity-60">(human)</span>}
@@ -484,6 +495,106 @@ function ReportCard({ report, override, onOverride, locale, copy }) {
   );
 }
 
+function HireModal({ report, onClose }) {
+  const [form, setForm] = useState({ name: "", company: "", message: "" });
+  const [sent, setSent] = useState(false);
+  if (!report) return null;
+
+  const passportTier = (report.live_score ?? 0) >= 80 ? "Gold" : (report.live_score ?? 0) >= 60 ? "Silver" : "Bronze";
+  const passportColor = passportTier === "Gold" ? "#b45309" : passportTier === "Silver" ? "#64748b" : "#92400e";
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18,24,39,0.40)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 500, background: "#fff", border: "1px solid #dbe4f0", borderRadius: 28, padding: "clamp(20px,4vw,32px)", boxShadow: "0 20px 60px rgba(35,49,79,0.2)", position: "relative", maxHeight: "90dvh", overflowY: "auto" }}
+      >
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 18, border: "none", background: "none", color: "#64748b", fontSize: 22, cursor: "pointer" }}>×</button>
+
+        {!sent ? (
+          <>
+            {/* Header */}
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 10, letterSpacing: 2.5, textTransform: "uppercase", color: "#3b82f6", margin: "0 0 8px", fontWeight: 700 }}>Hire Request</p>
+              <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 26, color: "#23314f", margin: "0 0 4px" }}>{report.worker_name}</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 13, color: "#64748b" }}>{report.assignment?.slice(0, 60)}…</span>
+              </div>
+            </div>
+
+            {/* Passport card strip */}
+            <div style={{ background: "rgba(35,49,79,0.03)", border: "1px solid rgba(35,49,79,0.1)", borderRadius: 14, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+              <div>
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b", fontWeight: 600 }}>Overall Score</p>
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#23314f", fontFamily: "Fraunces, serif" }}>{Math.round(report.live_score ?? 0)}/100</p>
+              </div>
+              <div style={{ height: 36, width: 1, background: "#dbe4f0" }} />
+              <div>
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b", fontWeight: 600 }}>Integrity</p>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#23314f", textTransform: "capitalize" }}>{report.integrity_log?.overall_flag?.replace("_", " ") || "Clear"}</p>
+              </div>
+              <div style={{ height: 36, width: 1, background: "#dbe4f0" }} />
+              <div>
+                <p style={{ margin: 0, fontSize: 11, color: "#64748b", fontWeight: 600 }}>Skill Passport</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: passportColor }}>⬡ {passportTier}</p>
+              </div>
+            </div>
+
+            {/* Form */}
+            {[
+              { label: "Your Name", key: "name", type: "text", placeholder: "Recruiter / hiring manager name" },
+              { label: "Company / Factory", key: "company", type: "text", placeholder: "e.g. Sunrise Garments Pvt. Ltd." },
+              { label: "Message (optional)", key: "message", type: "textarea", placeholder: "Brief note about the role or start date…" },
+            ].map((field) => (
+              <div key={field.key} style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#23314f", display: "block", marginBottom: 6 }}>{field.label}</label>
+                {field.type === "textarea" ? (
+                  <textarea
+                    value={form[field.key]}
+                    onChange={(e) => setForm((p) => ({ ...p, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    rows={3}
+                    style={{ width: "100%", padding: "10px 12px", border: "1px solid #dbe4f0", borderRadius: 12, fontSize: 13, background: "#fff", color: "#23314f", outline: "none", boxSizing: "border-box", fontFamily: "Manrope, sans-serif", resize: "vertical" }}
+                  />
+                ) : (
+                  <input
+                    type={field.type}
+                    value={form[field.key]}
+                    onChange={(e) => setForm((p) => ({ ...p, [field.key]: e.target.value }))}
+                    placeholder={field.placeholder}
+                    style={{ width: "100%", padding: "10px 12px", border: "1px solid #dbe4f0", borderRadius: 12, fontSize: 13, background: "#fff", color: "#23314f", outline: "none", boxSizing: "border-box", fontFamily: "Manrope, sans-serif" }}
+                  />
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={() => form.name && form.company && setSent(true)}
+              style={{ width: "100%", padding: "13px", borderRadius: 999, border: "none", background: form.name && form.company ? "#23314f" : "#cbd5e1", color: "#fff", fontSize: 15, fontWeight: 700, cursor: form.name && form.company ? "pointer" : "not-allowed", transition: "background 0.2s" }}
+            >
+              Send Hire Request
+            </button>
+            <p style={{ textAlign: "center", fontSize: 11, color: "#94a3b8", marginTop: 10 }}>One tap. No middleman. No thekedar.</p>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "18px 0 8px" }}>
+            <div style={{ fontSize: 52, marginBottom: 12 }}>✓</div>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#16a34a", margin: "0 0 10px", fontWeight: 700 }}>Request Sent</p>
+            <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 24, color: "#23314f", margin: "0 0 10px" }}>{report.worker_name} notified</h2>
+            <p style={{ fontSize: 14, color: "#64748b", lineHeight: 1.7, margin: "0 0 22px" }}>
+              {form.company} hire request has been sent. {report.worker_name}'s Skill Passport will be shared with your team.
+            </p>
+            <button onClick={onClose} style={{ padding: "11px 28px", borderRadius: 999, border: "none", background: "#23314f", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Close</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboardPage() {
   const { locale } = useLanguage();
@@ -493,6 +604,7 @@ export default function AdminDashboardPage() {
   const [reports, setReports]           = useState([]);
   const [workers, setWorkers]           = useState([]);
   const [overrides, setOverrides]       = useState({}); // { sessionId: "pass"|"hold"|"reject"|null }
+  const [hireTarget, setHireTarget] = useState(null);
 
   useEffect(() => {
     const fetch = async () => {
@@ -521,7 +633,11 @@ export default function AdminDashboardPage() {
     const passCount   = effective.filter((r) => r === "pass").length;
     const rejectCount = effective.filter((r) => r === "reject").length;
     const passRate    = reports.length ? Math.round((passCount / reports.length) * 100) : 0;
-    return { workers: workers.length || 4, active: liveSessions.length, passRate, rejected: rejectCount };
+    const reviewQueue = reports.filter((r) => {
+      const flag = r.integrity_log?.overall_flag;
+      return r.recommendation === "hold" || flag === "requires_review" || flag === "critical_flag";
+    }).length;
+    return { workers: workers.length || 4, active: liveSessions.length, passRate, rejected: rejectCount, reviewQueue };
   }, [liveSessions, reports, workers, overrides]);
 
   return (
@@ -538,7 +654,7 @@ export default function AdminDashboardPage() {
         <MetricCard title={copy.metrics.workers[0]}  value={stats.workers}          subtitle={copy.metrics.workers[1]}  icon={Users}         testId="metric-total-workers" />
         <MetricCard title={copy.metrics.active[0]}   value={stats.active}           subtitle={copy.metrics.active[1]}   icon={Activity}      testId="metric-active-sessions" />
         <MetricCard title={copy.metrics.passRate[0]} value={`${stats.passRate}%`}   subtitle={copy.metrics.passRate[1]} icon={CheckCircle2}  testId="metric-pass-rate" />
-        <MetricCard title={copy.metrics.rejected[0]} value={stats.rejected}         subtitle={copy.metrics.rejected[1]} icon={XCircle}       testId="metric-rejected-count" />
+        <MetricCard title="Review Queue" value={stats.reviewQueue} subtitle="pending review" icon={XCircle} testId="metric-review-queue" />
       </section>
 
       {/* Live + Reports */}
@@ -596,6 +712,7 @@ export default function AdminDashboardPage() {
                     onOverride={handleOverride}
                     locale={locale}
                     copy={copy.reports}
+                    onHire={(r) => setHireTarget(r)}
                   />
                 ))
               )}
@@ -603,6 +720,7 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </section>
+      <HireModal report={hireTarget} onClose={() => setHireTarget(null)} />
     </main>
   );
 }

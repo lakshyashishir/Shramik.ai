@@ -37,7 +37,7 @@ const DEMO_WORKERS = [
   {
     id: "demo_1",
     name: "Priya Mehra",
-    location: "Mumbai, India",
+    location: "Roorkee, Uttarakhand",
     specialization: "Bridal Wear",
     experience_years: 9,
     rating: 4.9,
@@ -52,7 +52,7 @@ const DEMO_WORKERS = [
   {
     id: "demo_2",
     name: "Nisha Patel",
-    location: "Ahmedabad, India",
+    location: "Roorkee, Uttarakhand",
     specialization: "Children's Wear",
     experience_years: 5,
     rating: 4.7,
@@ -67,10 +67,13 @@ const DEMO_WORKERS = [
 ];
 
 const FALLBACK_JOBS = [
-  { id: "f1", title: "Bridal Lehenga Embroidery", budget: "Rs. 2000-4000", skill: "Embroidery", posted_at: new Date(Date.now() - 2 * 3600000).toISOString(), urgent: true },
-  { id: "f2", title: "10 Suit Alterations (Corporate)", budget: "Rs. 1500", skill: "Alterations", posted_at: new Date(Date.now() - 5 * 3600000).toISOString(), urgent: false },
-  { id: "f3", title: "Leather Jacket Repair and Restoration", budget: "Rs. 800-1200", skill: "Leather Work", posted_at: new Date(Date.now() - 3 * 3600000).toISOString(), urgent: true },
+  { id: "f1", title: "Production Tailor — Garment Factory", budget: "Rs. 14,000–18,000/month", skill: "Industrial Stitching", location: "Roorkee, Uttarakhand", availability: "Immediate", posted_at: new Date(Date.now() - 2 * 3600000).toISOString(), urgent: true },
+  { id: "f2", title: "Garment Alteration Specialist", budget: "Rs. 600–900 per piece", skill: "Alterations", location: "Roorkee, Uttarakhand", availability: "Within 1 week", posted_at: new Date(Date.now() - 5 * 3600000).toISOString(), urgent: false },
+  { id: "f3", title: "Canteen Helper — School Midday Meal", budget: "Rs. 9,000–11,000/month", skill: "Canteen Operations", location: "Roorkee, Uttarakhand", availability: "Immediate", posted_at: new Date(Date.now() - 3 * 3600000).toISOString(), urgent: true },
 ];
+
+const JOB_LOCATIONS = ["All Locations", "Roorkee, Uttarakhand", "Haridwar", "Dehradun", "Delhi NCR", "Remote"];
+const JOB_AVAILABILITIES = ["All", "Immediate", "Within 1 week", "Flexible"];
 
 function postedAgo(isoString) {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -166,6 +169,17 @@ const copyMap = {
     noSessionYet: "No screening sessions completed yet.",
     verified: "Verified",
     demo: "Demo",
+    applyNow: "Apply Now",
+    applied: "Applied ✓",
+    applyModal_title: "Quick Apply",
+    applyModal_sub: "Your Shramik profile will be sent to the recruiter. No forms — one tap.",
+    applyModal_confirm: "Confirm Application",
+    applyModal_sent: "Application Sent!",
+    applyModal_sent_sub: "The recruiter will review your Skill Passport and reach out shortly.",
+    filterLocation: "Location",
+    filterAvailability: "Availability",
+    allLocations: "All Locations",
+    allAvail: "All",
   },
   hi: {
     available: "उपलब्ध",
@@ -236,6 +250,17 @@ const copyMap = {
     noSessionYet: "अभी तक कोई screening session पूरा नहीं हुआ।",
     verified: "सत्यापित",
     demo: "डेमो",
+    applyNow: "अभी अप्लाई करें",
+    applied: "अप्लाई हो गया ✓",
+    applyModal_title: "Quick Apply",
+    applyModal_sub: "आपकी Shramik profile recruiter को भेजी जाएगी। कोई form नहीं — एक tap।",
+    applyModal_confirm: "Application भेजें",
+    applyModal_sent: "Application भेज दी गई!",
+    applyModal_sent_sub: "Recruiter आपका Skill Passport देखेगा और जल्द संपर्क करेगा।",
+    filterLocation: "Location",
+    filterAvailability: "उपलब्धता",
+    allLocations: "सभी Locations",
+    allAvail: "सभी",
   },
 };
 
@@ -390,27 +415,49 @@ function WorkerCard({ worker, onHire, onViewPassport, copy, skillLabel, karma })
 }
 
 /* ── Job card ────────────────────────────────────────────────────── */
-function JobCard({ job, copy, skillLabel }) {
+function JobCard({ job, copy, skillLabel, applied, onApply }) {
+  const loc = job.location || "";
+  const avail = job.availability || (job.urgent ? "Immediate" : "Within 1 week");
+  const isApplied = applied;
+
   return (
     <article style={{
       background: palette.panel, border: `1px solid ${palette.border}`,
       borderLeft: `4px solid ${job.urgent ? palette.accent : palette.primary}`,
       borderRadius: 18, padding: "16px 18px",
-      display: "flex", flexDirection: "column", gap: 8,
+      display: "flex", flexDirection: "column", gap: 10,
       boxShadow: "0 10px 24px rgba(35,49,79,0.05)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <h4 style={{ margin: 0, fontSize: 18, fontFamily: "Fraunces, serif", color: palette.text, flex: 1 }}>{job.title}</h4>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+        <h4 style={{ margin: 0, fontSize: 17, fontFamily: "Fraunces, serif", color: palette.text, flex: 1, lineHeight: 1.3 }}>{job.title}</h4>
         {job.urgent && (
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, padding: "4px 8px", borderRadius: 999, background: palette.accentSoft, color: palette.accent, textTransform: "uppercase" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1, padding: "4px 8px", borderRadius: 999, background: palette.accentSoft, color: palette.accent, textTransform: "uppercase", flexShrink: 0 }}>
             {copy.urgent}
           </span>
         )}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, padding: "5px 10px", borderRadius: 999, background: palette.soft, color: palette.primary, fontWeight: 700 }}>{skillLabel(job.skill)}</span>
-        <span style={{ fontSize: 13, color: palette.text, fontWeight: 700, marginLeft: "auto" }}>{job.budget}</span>
-        <span style={{ fontSize: 12, color: palette.muted }}>{job.posted_at ? postedAgo(job.posted_at) : (job.postedAgo || "")}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, background: "rgba(35,49,79,0.06)", color: palette.primary, fontWeight: 700 }}>{skillLabel(job.skill)}</span>
+        {loc && <span style={{ fontSize: 11, color: palette.muted }}>📍 {loc}</span>}
+        <span style={{ fontSize: 11, padding: "4px 10px", borderRadius: 999, background: avail === "Immediate" ? "rgba(59,130,246,0.08)" : "rgba(35,49,79,0.04)", color: avail === "Immediate" ? palette.accent : palette.muted, fontWeight: 600 }}>{avail}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <span style={{ fontSize: 14, color: palette.text, fontWeight: 700 }}>{job.budget}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: palette.muted }}>{job.posted_at ? postedAgo(job.posted_at) : (job.postedAgo || "")}</span>
+          <button
+            onClick={() => !isApplied && onApply(job)}
+            style={{
+              padding: "8px 18px", borderRadius: 999, border: "none",
+              background: isApplied ? "rgba(22,163,74,0.1)" : palette.primary,
+              color: isApplied ? "#16a34a" : "#fff",
+              fontSize: 13, fontWeight: 700, cursor: isApplied ? "default" : "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            {isApplied ? copy.applied : copy.applyNow}
+          </button>
+        </div>
       </div>
     </article>
   );
@@ -473,6 +520,49 @@ function HireModal({ worker, onClose, copy }) {
 }
 
 
+/* ── Apply modal ────────────────────────────────────────────────── */
+function ApplyModal({ job, onClose, onConfirm, copy }) {
+  const [sent, setSent] = useState(false);
+  if (!job) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(18,24,39,0.36)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 480, background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: "28px 28px 0 0", padding: "28px 24px 32px", boxShadow: "0 -8px 40px rgba(35,49,79,0.18)", position: "relative" }}
+      >
+        <button onClick={onClose} style={{ position: "absolute", top: 16, right: 18, border: "none", background: "none", color: palette.muted, fontSize: 22, cursor: "pointer" }}>×</button>
+        {!sent ? (
+          <>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: palette.accent, margin: "0 0 6px" }}>{copy.applyModal_title}</p>
+            <h2 style={{ fontFamily: "Fraunces, serif", fontSize: 24, color: palette.text, margin: "0 0 8px" }}>{job.title}</h2>
+            <p style={{ fontSize: 13, color: palette.muted, margin: "0 0 6px" }}>📍 {job.location || "Location not specified"} · {job.budget}</p>
+            <p style={{ fontSize: 14, color: palette.muted, lineHeight: 1.65, margin: "12px 0 22px", padding: "12px", background: "rgba(59,130,246,0.04)", borderRadius: 12, border: "1px solid rgba(59,130,246,0.12)" }}>
+              {copy.applyModal_sub}
+            </p>
+            <button
+              onClick={() => { setSent(true); onConfirm(job.id); }}
+              style={{ width: "100%", padding: "14px", borderRadius: 999, border: "none", background: palette.primary, color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}
+            >
+              {copy.applyModal_confirm}
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "10px 0 6px" }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>✓</div>
+            <p style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#16a34a", margin: "0 0 8px" }}>{copy.applyModal_sent}</p>
+            <p style={{ fontSize: 14, color: palette.muted, lineHeight: 1.7, margin: "0 0 20px" }}>{copy.applyModal_sent_sub}</p>
+            <button onClick={onClose} style={{ padding: "11px 28px", borderRadius: 999, border: "none", background: palette.primary, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{copy.close}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 /* ── Main page ──────────────────────────────────────────────────── */
 export default function WorkersBoardPage() {
   const { locale } = useLanguage();
@@ -489,6 +579,10 @@ export default function WorkersBoardPage() {
   const [postForm, setPostForm] = useState({ title: "", skill: "Alterations", budget: "", description: "" });
   const [postedJobs, setPostedJobs] = useState([]);
   const [jobPosted, setJobPosted] = useState(false);
+  const [jobLocFilter, setJobLocFilter] = useState("All Locations");
+  const [jobAvailFilter, setJobAvailFilter] = useState("All");
+  const [appliedJobs, setAppliedJobs] = useState({});
+  const [applyTarget, setApplyTarget] = useState(null);
 
   const skillLabel = (skill) => copy.skillLabels[skill] || skill;
 
@@ -508,6 +602,7 @@ export default function WorkersBoardPage() {
             ...w,
             color: workerColor(w.name),
             available: true,
+            location: w.location || "Roorkee, Uttarakhand",
           })));
           // Fetch karma for each worker
           workers.forEach((w) => {
@@ -538,6 +633,17 @@ export default function WorkersBoardPage() {
         return 0;
       });
   }, [allWorkers, activeSkill, search, sortBy, karmaMap]);
+
+  const filteredJobs = useMemo(() => {
+    return postedJobs.filter((job) => {
+      if (jobLocFilter !== "All Locations" && !((job.location || "").includes(jobLocFilter))) return false;
+      if (jobAvailFilter !== "All") {
+        const avail = job.availability || (job.urgent ? "Immediate" : "Within 1 week");
+        if (avail !== jobAvailFilter) return false;
+      }
+      return true;
+    });
+  }, [postedJobs, jobLocFilter, jobAvailFilter]);
 
   const handlePostJob = () => {
     if (!postForm.title || !postForm.description) return;
@@ -662,12 +768,43 @@ export default function WorkersBoardPage() {
 
         {activeTab === "jobs" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ marginBottom: 10 }}>
+            <div style={{ marginBottom: 4 }}>
               <p style={{ fontSize: 11, letterSpacing: 2, color: palette.accent, textTransform: "uppercase", margin: "0 0 6px" }}>{copy.openKicker}</p>
               <h2 style={{ fontFamily: "Fraunces, serif", fontSize: "clamp(1.8rem,4vw,2.5rem)", margin: 0, color: palette.text }}>{copy.openTitle}</h2>
               <p style={{ fontSize: 14, color: palette.muted, marginTop: 8 }}>{copy.openDescription}</p>
             </div>
-            {postedJobs.map((job) => <JobCard key={job.id} job={job} copy={copy} skillLabel={skillLabel} />)}
+            {/* Filters */}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 18, padding: "14px 16px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 160px" }}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: palette.muted }}>{copy.filterLocation}</label>
+                <select value={jobLocFilter} onChange={(e) => setJobLocFilter(e.target.value)} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }}>
+                  {JOB_LOCATIONS.map((l) => <option key={l}>{l}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 140px" }}>
+                <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: palette.muted }}>{copy.filterAvailability}</label>
+                <select value={jobAvailFilter} onChange={(e) => setJobAvailFilter(e.target.value)} style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }}>
+                  {JOB_AVAILABILITIES.map((a) => <option key={a}>{a}</option>)}
+                </select>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: palette.muted, margin: "0 0 4px" }}>{filteredJobs.length} jobs found</p>
+            {filteredJobs.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                copy={copy}
+                skillLabel={skillLabel}
+                applied={!!appliedJobs[job.id]}
+                onApply={setApplyTarget}
+              />
+            ))}
+            {filteredJobs.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 20px", background: palette.panel, border: `1px solid ${palette.border}`, borderRadius: 18, color: palette.muted }}>
+                <p style={{ fontFamily: "Fraunces, serif", fontSize: 20, color: palette.text, margin: "0 0 8px" }}>No jobs match</p>
+                <p style={{ margin: 0, fontSize: 14 }}>Try adjusting the filters above.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -715,6 +852,12 @@ export default function WorkersBoardPage() {
       </section>
 
       <HireModal worker={selectedWorker} onClose={() => setSelectedWorker(null)} copy={copy} />
+      <ApplyModal
+        job={applyTarget}
+        onClose={() => setApplyTarget(null)}
+        onConfirm={(id) => setAppliedJobs((prev) => ({ ...prev, [id]: true }))}
+        copy={copy}
+      />
     </main>
   );
 }
