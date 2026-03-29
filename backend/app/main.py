@@ -7,6 +7,7 @@ from app.api.routes.call import router as call_router
 from app.api.routes.health import router as health_router
 from app.api.routes.jobs import router as jobs_router
 from app.api.routes.karma import router as karma_router
+from app.api.routes.review import router as review_router
 from app.api.routes.sessions import router as sessions_router
 from app.api.routes.speech import router as speech_router
 from app.api.routes.workers import router as workers_router
@@ -37,3 +38,4 @@ app.include_router(speech_router, prefix="/api")
 app.include_router(call_router, prefix="/api")
 app.include_router(jobs_router, prefix="/api")
 app.include_router(karma_router, prefix="/api")
+app.include_router(review_router, prefix="/api")
