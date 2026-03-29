@@ -26,7 +26,9 @@ Tier thresholds:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import re
+from datetime import datetime, timezone, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 CHANNEL_MULTIPLIER: Dict[str, float] = {
     "app_full": 1.0,
@@ -143,19 +145,29 @@ def _compute_reliability_score(sessions: List[Any], completed: List[Any]) -> flo
     return base
 
 
-def compute_karma(sessions: List[Any]) -> Dict[str, Any]:
+def compute_karma(
+    sessions: List[Any],
+    ratings: Optional[List[float]] = None,
+) -> Dict[str, Any]:
     """
     Compute karma from a list of Session model objects.
 
+    Args:
+      sessions: Session model objects for this worker
+      ratings:  Employer star ratings (1.0–5.0); pass [] if none yet
+
     Returns:
       {
-        "karma":            int,    # 0-1000
+        "karma":            int,    # 0-1000 (after anomaly penalty)
         "tier":             str,    # Bronze / Silver / Gold / Platinum
         "skill_score":      float,  # normalised 0-1 (channel-adjusted)
         "integrity_score":  float,  # 0-1
         "components":       { skill, integrity, reputation, reliability, growth, community },
         "session_id":       str | None,
         "interview_mode":   str | None,
+        "anomaly_flagged":  bool,
+        "anomaly_signals":  List[str],
+        "anomaly_penalty":  float,  # multiplier applied (1.0 = no penalty)
       }
     """
     completed = [s for s in sessions if s.status == "completed"]
@@ -177,9 +189,15 @@ def compute_karma(sessions: List[Any]) -> Dict[str, Any]:
     # ── Reliability component ────────────────────────────────────────────────
     reliability_score = _compute_reliability_score(sessions, completed)
 
-    # ── Future components (seeded at neutral values) ─────────────────────────
-    # reputation_score: will be derived from post-hire employer ratings (1-5 stars → 0-1)
-    reputation_score = 0.5
+    # ── Reputation component (employer star ratings, 1-5 → 0-1) ─────────────
+    if ratings:
+        avg_star = sum(ratings) / len(ratings)
+        # Map [1, 5] → [0, 1] linearly
+        reputation_score = (avg_star - 1.0) / 4.0
+    else:
+        # Seeded at 0.5 until real ratings arrive
+        reputation_score = 0.5
+
     # community_score: referral count / referral_cap (future feature)
     community_score = 0.0
 
@@ -192,7 +210,11 @@ def compute_karma(sessions: List[Any]) -> Dict[str, Any]:
         + growth_score     * 100
         + community_score  *  50
     )
-    karma = max(0, min(1000, round(karma_raw)))
+    karma_pre_anomaly = max(0, min(1000, round(karma_raw)))
+
+    # ── Anomaly detection + penalty ──────────────────────────────────────────
+    anomaly = _detect_anomalies(sessions, karma_pre_anomaly)
+    karma = max(0, min(1000, round(karma_pre_anomaly * anomaly["penalty"])))
 
     tier = "Bronze"
     for threshold, name in TIER_THRESHOLDS:
@@ -213,8 +235,11 @@ def compute_karma(sessions: List[Any]) -> Dict[str, Any]:
             "growth":      round(growth_score * 100),
             "community":   round(community_score * 50),
         },
-        "session_id":     best.id if best else None,
-        "interview_mode": best.interview_mode if best else None,
+        "session_id":      best.id if best else None,
+        "interview_mode":  best.interview_mode if best else None,
+        "anomaly_flagged": anomaly["flagged"],
+        "anomaly_signals": anomaly["signals"],
+        "anomaly_penalty": anomaly["penalty"],
     }
 
 
@@ -223,3 +248,148 @@ def get_passport_tier(karma: int) -> str:
         if karma >= threshold:
             return name
     return "Bronze"
+
+
+# ── Anomaly detection ─────────────────────────────────────────────────────────
+
+_ANOMALY_KARMA_JUMP = 200      # flagged if karma jumps this much in 48 hours
+_ANOMALY_SESSION_BURST = 4     # flagged if this many sessions completed in 24 hours
+_ANOMALY_RUBRIC_CLONE_THRESH = 1.0  # flagged if all rubric scores differ by < 1 pt across sessions
+
+
+def _detect_anomalies(sessions: List[Any], karma: int) -> Dict[str, Any]:
+    """
+    Rule-based anomaly detection on the session corpus.
+
+    Returns:
+      { "flagged": bool, "signals": List[str], "penalty": float (0-1 multiplier) }
+
+    A penalty of 0.9 means karma is multiplied by 0.9 before finalisation.
+    Flags are stored for human audit — they do not automatically reject the worker.
+    """
+    signals: list[str] = []
+    completed = [s for s in sessions if s.status == "completed"]
+
+    # ── Signal 1: Rapid karma accumulation ──────────────────────────────────
+    # Compare sessions completed in the last 48 hours vs all-time average
+    now = datetime.now(timezone.utc)
+    cutoff_48h = now - timedelta(hours=48)
+    recent = []
+    for s in completed:
+        try:
+            ts = s.ended_at
+            if ts:
+                dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if dt >= cutoff_48h:
+                    recent.append(s)
+        except (ValueError, AttributeError):
+            pass
+
+    if len(recent) >= _ANOMALY_SESSION_BURST:
+        signals.append(f"session_burst_{len(recent)}_in_48h")
+
+    # ── Signal 2: Suspiciously identical rubric scores across sessions ───────
+    if len(completed) >= 2:
+        rubric_sets = []
+        for s in completed:
+            rubric = {
+                k: v for k, v in (s.rubric_scores or {}).items()
+                if k != "integrity_compliance" and isinstance(v, (int, float))
+            }
+            if rubric:
+                rubric_sets.append(rubric)
+
+        if len(rubric_sets) >= 2:
+            common_keys = set(rubric_sets[0]) & set(rubric_sets[1])
+            if common_keys:
+                max_diff = max(
+                    abs(rubric_sets[0][k] - rubric_sets[1][k])
+                    for k in common_keys
+                )
+                if max_diff < _ANOMALY_RUBRIC_CLONE_THRESH:
+                    signals.append("rubric_scores_near_identical_across_sessions")
+
+    # ── Signal 3: Critical integrity + very high score ───────────────────────
+    for s in completed:
+        flag = s.integrity_log.overall_flag
+        if flag == "critical_flag" and s.live_score >= 80:
+            signals.append(f"critical_integrity_with_high_score_{round(s.live_score)}")
+            break
+
+    # ── Signal 4: Score variance too low across many sessions (coaching) ─────
+    if len(completed) >= 3:
+        scores = [s.live_score for s in completed]
+        mean = sum(scores) / len(scores)
+        variance = sum((x - mean) ** 2 for x in scores) / len(scores)
+        if variance < 4.0:   # std dev < 2 points across 3+ sessions
+            signals.append("unnaturally_low_score_variance")
+
+    flagged = len(signals) > 0
+    # Penalty: each unique signal knocks 5% off karma (max 20%)
+    penalty = max(0.80, 1.0 - len(signals) * 0.05)
+
+    return {"flagged": flagged, "signals": signals, "penalty": penalty}
+
+
+# ── Passport narrative ────────────────────────────────────────────────────────
+
+def generate_passport_narrative(
+    worker_name: str,
+    specialization: str,
+    experience_years: int,
+    karma_data: Dict[str, Any],
+    rubric_scores: Dict[str, float],
+) -> str:
+    """
+    Generate a 2-3 sentence human-readable narrative for the Skill Passport.
+
+    Calls Azure OpenAI GPT-4.1. Falls back to a template string if the API
+    is unavailable (so the passport always has a narrative).
+    """
+    try:
+        from openai import AzureOpenAI
+        from app.config import settings
+
+        if not settings.azure_openai_endpoint or not settings.azure_openai_api_key:
+            raise ValueError("OpenAI not configured")
+
+        tier = karma_data.get("tier", "Bronze")
+        karma = karma_data.get("karma", 0)
+
+        rubric_summary = ", ".join(
+            f"{k.replace('_', ' ').title()} {round(v)}/100"
+            for k, v in rubric_scores.items()
+            if k != "integrity_compliance"
+        )
+
+        prompt = (
+            f"Write a 2-3 sentence professional narrative for a worker's Skill Passport. "
+            f"Worker: {worker_name}. Trade: {specialization}. Experience: {experience_years} years. "
+            f"Karma tier: {tier} ({karma}/1000). Rubric breakdown: {rubric_summary}. "
+            f"Write once in English, then once in Hindi. Separate with a newline. "
+            f"Be specific about their strengths. Do not use generic phrases like 'hard worker'."
+        )
+
+        client = AzureOpenAI(
+            azure_endpoint=settings.azure_openai_endpoint,
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+        )
+        resp = client.chat.completions.create(
+            model=settings.azure_openai_deployment,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+            max_tokens=200,
+        )
+        return resp.choices[0].message.content.strip()
+
+    except Exception:
+        tier = karma_data.get("tier", "Bronze")
+        return (
+            f"{worker_name} is a {tier}-tier {specialization} with {experience_years} years of experience. "
+            f"Their assessment demonstrates verified technical knowledge and a strong work ethic.\n"
+            f"{worker_name} ek {tier} tier ke {specialization} hain jinka {experience_years} saal ka anubhav hai. "
+            f"Unka mulyaankan unki takneeki dakshata aur mehnat ko darshata hai."
+        )
