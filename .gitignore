@@ -12,12 +12,15 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# Environment / secrets — never commit
 .env
 .env.local
 .env.*.local
 
 .DS_Store
 Thumbs.db
+
+# Databases
 backend/shramik_demo.db
 shramik_local.db
 backend/shramik_local.db
