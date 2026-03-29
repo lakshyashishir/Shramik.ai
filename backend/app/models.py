@@ -249,6 +249,59 @@ class Job(BaseModel):
     posted_at: str
 
 
+class JobApplyRequest(BaseModel):
+    worker_id: str
+    passport_tier: Optional[str] = None
+    karma_score: Optional[int] = None
+
+
+class JobApplyResponse(BaseModel):
+    application_id: str
+    job_id: str
+    worker_id: str
+    status: str
+    applied_at: str
+
+
+class WorkerRatingRequest(BaseModel):
+    worker_id: str
+    rated_by: str = Field(..., min_length=2, max_length=120)
+    rating: float = Field(..., ge=1.0, le=5.0)
+    tags: List[str] = Field(default_factory=list)
+    note: Optional[str] = Field(None, max_length=400)
+
+
+class WorkerRatingResponse(BaseModel):
+    rating_id: str
+    worker_id: str
+    job_id: str
+    rating: float
+    rated_by: str
+    rated_at: str
+
+
+class ReviewDecisionRequest(BaseModel):
+    reviewer_id: str = Field(..., min_length=2, max_length=120)
+    final_recommendation: Literal["pass", "hold", "reject"]
+    rubric_edits: Dict[str, float] = Field(default_factory=dict)
+    edit_notes: Dict[str, str] = Field(default_factory=dict)
+    time_spent_seconds: Optional[int] = None
+
+
+class ReviewDecisionResponse(BaseModel):
+    decision_id: str
+    session_id: str
+    final_recommendation: str
+    decided_at: str
+
+
+class RubricPatchRequest(BaseModel):
+    reviewer_id: str = Field(..., min_length=2, max_length=120)
+    rubric_key: str
+    new_score: float = Field(..., ge=0.0, le=100.0)
+    note: str = Field(..., min_length=5, max_length=400)
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 

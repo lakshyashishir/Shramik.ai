@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Optional
 
 from app.database import get_db
 from app.services import store
-from app.db_models import SessionDB
-from app.agents.karma_engine import compute_karma
+from app.db_models import SessionDB, WorkerRatingDB
+from app.agents.karma_engine import compute_karma, generate_passport_narrative
 
 router = APIRouter(tags=["karma"])
 
@@ -28,6 +28,9 @@ class KarmaResponse(BaseModel):
     components: Dict[str, int]
     session_id: Optional[str] = None
     interview_mode: Optional[str] = None
+    anomaly_flagged: bool = False
+    anomaly_signals: List[str] = []
+    anomaly_penalty: float = 1.0
 
 
 class PassportResponse(BaseModel):
@@ -53,6 +56,9 @@ class PassportResponse(BaseModel):
     portfolio_enrichment: List[Dict[str, Any]]  # {note, vision_summary, complexity}
     prior_work: List[Dict[str, Any]]            # {note, vision_summary, relevance_flag}
     session_history: List[Dict[str, Any]]       # lightweight session list
+    narrative: str = ""
+    anomaly_flagged: bool = False
+    anomaly_signals: List[str] = []
 
 
 async def _get_worker_sessions(db: AsyncSession, worker_id: str):
@@ -60,6 +66,13 @@ async def _get_worker_sessions(db: AsyncSession, worker_id: str):
         select(SessionDB).where(SessionDB.worker_id == worker_id)
     )
     return result.scalars().all()
+
+
+async def _get_worker_ratings(db: AsyncSession, worker_id: str) -> List[float]:
+    result = await db.execute(
+        select(WorkerRatingDB.rating).where(WorkerRatingDB.worker_id == worker_id)
+    )
+    return [row[0] for row in result.all()]
 
 
 @router.get("/workers/{worker_id}/karma", response_model=KarmaResponse)
@@ -71,8 +84,9 @@ async def get_worker_karma(worker_id: str, db: AsyncSession = Depends(get_db)):
     # Load sessions as full model objects via the store helper
     db_sessions = await _get_worker_sessions(db, worker_id)
     sessions = [store._db_session_to_model(s) for s in db_sessions]
+    ratings = await _get_worker_ratings(db, worker_id)
 
-    result = compute_karma(sessions)
+    result = compute_karma(sessions, ratings=ratings)
     return KarmaResponse(worker_id=worker_id, **result)
 
 
@@ -84,8 +98,9 @@ async def get_passport(worker_id: str, db: AsyncSession = Depends(get_db)):
 
     db_sessions = await _get_worker_sessions(db, worker_id)
     sessions = [store._db_session_to_model(s) for s in db_sessions]
+    ratings = await _get_worker_ratings(db, worker_id)
 
-    karma_data = compute_karma(sessions)
+    karma_data = compute_karma(sessions, ratings=ratings)
 
     # Best completed session for rubric / narrative
     completed = [s for s in sessions if s.status == "completed"]
@@ -138,6 +153,14 @@ async def get_passport(worker_id: str, db: AsyncSession = Depends(get_db)):
 
     all_scores = [round(s.live_score) for s in completed]
 
+    narrative = generate_passport_narrative(
+        worker_name=worker.name,
+        specialization=worker.specialization,
+        experience_years=worker.experience_years,
+        karma_data=karma_data,
+        rubric_scores=rubric_scores,
+    )
+
     return PassportResponse(
         worker_id=worker_id,
         worker_name=worker.name,
@@ -160,4 +183,7 @@ async def get_passport(worker_id: str, db: AsyncSession = Depends(get_db)):
         portfolio_enrichment=portfolio_enrichment,
         prior_work=prior_work,
         session_history=session_history,
+        narrative=narrative,
+        anomaly_flagged=karma_data["anomaly_flagged"],
+        anomaly_signals=karma_data["anomaly_signals"],
     )

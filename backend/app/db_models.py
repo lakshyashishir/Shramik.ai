@@ -81,3 +81,54 @@ class SessionDB(Base):
     external_call_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     call_duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     latest_call_recording_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class WorkerRatingDB(Base):
+    __tablename__ = "worker_ratings"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    worker_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    job_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    rating: Mapped[float] = mapped_column(Float, nullable=False)          # 1.0 – 5.0
+    tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)      # CSV e.g. "on_time,quality"
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rated_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    rated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class JobApplicationDB(Base):
+    __tablename__ = "job_applications"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    job_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    passport_tier: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    karma_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(30), default="applied")   # applied | shortlisted | hired | rejected
+    applied_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
+class ReviewDecisionDB(Base):
+    __tablename__ = "review_decisions"
+
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    reviewer_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    original_recommendation: Mapped[str] = mapped_column(String(20), nullable=False)
+    final_recommendation: Mapped[str] = mapped_column(String(20), nullable=False)
+    rubric_edits: Mapped[dict] = mapped_column(JSON, default=dict)
+    edit_notes: Mapped[dict] = mapped_column(JSON, default=dict)
+    time_spent_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    decided_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import List, Optional
 
 from app.database import get_db
-from app.db_models import JobDB
-from app.models import Job, JobCreate, new_id, utc_now_iso
+from app.db_models import JobDB, JobApplicationDB, WorkerRatingDB
+from app.models import (
+    Job, JobCreate, new_id, utc_now_iso,
+    JobApplyRequest, JobApplyResponse,
+    WorkerRatingRequest, WorkerRatingResponse,
+)
 
 router = APIRouter(tags=["jobs"])
 
@@ -55,6 +59,70 @@ async def delete_job(job_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Job not found")
     await db.delete(db_job)
     await db.commit()
+
+
+@router.post("/jobs/{job_id}/apply", response_model=JobApplyResponse, status_code=201)
+async def apply_to_job(
+    job_id: str,
+    payload: JobApplyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(JobDB).where(JobDB.id == job_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    application = JobApplicationDB(
+        id=new_id("app"),
+        job_id=job_id,
+        worker_id=payload.worker_id,
+        passport_tier=payload.passport_tier,
+        karma_score=payload.karma_score,
+        status="applied",
+    )
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+
+    return JobApplyResponse(
+        application_id=application.id,
+        job_id=job_id,
+        worker_id=payload.worker_id,
+        status=application.status,
+        applied_at=application.applied_at.isoformat(),
+    )
+
+
+@router.post("/jobs/{job_id}/rate", response_model=WorkerRatingResponse, status_code=201)
+async def rate_worker(
+    job_id: str,
+    payload: WorkerRatingRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(JobDB).where(JobDB.id == job_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    rating_row = WorkerRatingDB(
+        id=new_id("rating"),
+        worker_id=payload.worker_id,
+        job_id=job_id,
+        rating=payload.rating,
+        tags=",".join(payload.tags) if payload.tags else None,
+        note=payload.note,
+        rated_by=payload.rated_by,
+    )
+    db.add(rating_row)
+    await db.commit()
+    await db.refresh(rating_row)
+
+    return WorkerRatingResponse(
+        rating_id=rating_row.id,
+        job_id=job_id,
+        worker_id=payload.worker_id,
+        rating=payload.rating,
+        rated_by=payload.rated_by,
+        rated_at=rating_row.rated_at.isoformat(),
+    )
 
 
 class HireRequest(BaseModel):
