@@ -18,14 +18,21 @@ microsoft/
 │   │   │   ├── interview.py          # Stage definitions (intro/machine/quality/readiness)
 │   │   │   ├── scorecard.py          # Rubric dimensions (default/alternate rubric)
 │   │   │   ├── screening_logic.py    # Core scoring engine (RUBRIC_WEIGHTS, finalize_session)
+│   │   │   ├── karma_engine.py       # Karma 0-1000 scoring (skill/integrity/growth/reliability)
+│   │   │   ├── karma_model.py        # ML tier classifier (GradientBoostedTierClassifier)
 │   │   │   └── interview-system.md   # GPT system prompt for the screening agent
 │   │   ├── api/routes/
 │   │   │   ├── sessions.py   # Session lifecycle endpoints
 │   │   │   ├── workers.py    # Worker CRUD endpoints
 │   │   │   ├── speech.py     # STT/TTS proxy (Sarvam AI)
+│   │   │   ├── karma.py      # GET /workers/{id}/karma, GET /passport/{id}
+│   │   │   ├── jobs.py       # Job board + POST /jobs/{id}/hire
+│   │   │   ├── call.py       # IVR / Twilio voice call integration
 │   │   │   └── health.py     # Health check
 │   │   ├── integrations/azure/config.py  # Azure dependency check
-│   │   ├── services/store.py  # In-memory store (dicts)
+│   │   ├── services/store.py  # SQLAlchemy async helpers (wraps db_models)
+│   │   ├── database.py        # Async SQLAlchemy engine + get_db dependency
+│   │   ├── db_models.py       # ORM models (WorkerDB, SessionDB, JobDB)
 │   │   ├── models.py          # All Pydantic models
 │   │   ├── config.py          # Settings (env vars)
 │   │   └── main.py            # FastAPI app + CORS + router registration
@@ -36,8 +43,14 @@ microsoft/
 │       ├── pages/
 │       │   ├── ScreeningRoomPage.jsx   # Worker-facing interview UI
 │       │   ├── AdminDashboardPage.jsx  # Recruiter/admin reporting UI
+│       │   ├── ReviewQueuePage.jsx     # Human review queue (confidence 0.55-0.79)
+│       │   ├── WorkerProfilePage.jsx   # Worker profile + passport card
+│       │   ├── WorkerEditProfilePage.jsx
 │       │   ├── WorkersBoardPage.jsx    # Job board (static demo data)
 │       │   └── LandingPage.jsx
+│       ├── components/
+│       │   ├── KarmaBadge.jsx          # Animated karma ring + tier pill
+│       │   └── PassportCard.jsx        # Skill passport display
 │       ├── services/api.js    # axios client (all API calls)
 │       ├── i18n/language.jsx  # en/hi locale context
 │       └── App.js             # Routing, role context, nav
@@ -52,7 +65,8 @@ microsoft/
 - **Python ≥ 3.10**, FastAPI, Pydantic v2 / pydantic-settings
 - **AI**: Azure OpenAI (`gpt-4.1`, `2025-04-01-preview` API version)
 - **Speech**: Sarvam AI STT (`saaras:v3`, `hi-IN`) + TTS (`bulbul:v2`, speaker `anushka`)
-- **Storage**: In-memory Python dicts (no database — data resets on restart)
+- **Storage**: SQLAlchemy 2.0 async + SQLite locally (`shramik_local.db`); Azure Cosmos DB planned for production
+- **ORM models**: `db_models.py` (WorkerDB, SessionDB, JobDB); Pydantic models in `models.py`
 - **Server**: Uvicorn
 
 ### Frontend
@@ -346,7 +360,7 @@ npm start
 
 ## Important Constraints & Gotchas
 
-1. **In-memory store only** — `workers` and `sessions` are plain Python dicts in `store.py`. All data is lost on backend restart.
+1. **SQLite + SQLAlchemy async** — data is persisted to `shramik_local.db`. `store.py` is now a thin helper layer over async SQLAlchemy; `db_models.py` holds the ORM models. Production target is Azure Cosmos DB.
 2. **Session turns rejected if status != "live"** — all turn/snapshot/integrity endpoints return HTTP 400 if session is completed.
 3. **Completing a session is idempotent** — calling `/complete` on an already-completed session returns 200 with existing session (no re-evaluation).
 4. **Score_delta is clamped** server-side to `[-8, +8]` regardless of what GPT returns.
