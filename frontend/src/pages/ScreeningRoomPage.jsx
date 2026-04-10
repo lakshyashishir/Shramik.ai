@@ -781,6 +781,7 @@ export default function ScreeningRoomPage() {
   const lastIntegrityEventAtRef = useRef({});
   const transcriptListRef = useRef(null);
   const aiAudioRef = useRef(null);
+  const speakRequestRef = useRef(0); // incremented on each speakAi call; stale calls bail out
   const mediaRecorderRef = useRef(null);
   const silenceTimerRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -1042,36 +1043,58 @@ export default function ScreeningRoomPage() {
 
   const speakAi = async (text) => {
     if (!isVoiceEnabled || !text) return;
+    // Stamp this request; any older in-flight call will see a stale id and bail
+    const reqId = ++speakRequestRef.current;
     setAiSpeaking(true);
+    // Stop whatever is currently playing before we start fetching
+    if (aiAudioRef.current) {
+      aiAudioRef.current.pause();
+      aiAudioRef.current.src = "";
+      aiAudioRef.current = null;
+    }
+    let audioBlob;
     try {
-      const audioBlob = await screeningApi.ttsSynthesize(text);
-      const url = URL.createObjectURL(audioBlob);
-      if (aiAudioRef.current) {
-        aiAudioRef.current.pause();
-        aiAudioRef.current.src = "";
-        aiAudioRef.current = null;
-      }
-      const audio = new Audio(url);
-      aiAudioRef.current = audio;
-      audio.onended = () => {
-        setAiSpeaking(false);
-        URL.revokeObjectURL(url);
-        if (aiAudioRef.current === audio) aiAudioRef.current = null;
-        triggerAutoListen();
-      };
-      audio.onerror = () => {
-        setAiSpeaking(false);
-        URL.revokeObjectURL(url);
-        if (aiAudioRef.current === audio) aiAudioRef.current = null;
-        triggerAutoListen();
-      };
+      audioBlob = await screeningApi.ttsSynthesize(text);
+    } catch {
+      // Sarvam TTS fetch failed — fall back to Web Speech API
+      if (reqId !== speakRequestRef.current) return; // superseded by a newer call
+      setAiSpeaking(false);
+      try {
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.lang = locale === "hi" ? "hi-IN" : "en-IN";
+        msg.onend = () => { setAiSpeaking(false); triggerAutoListen(); };
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(msg);
+      } catch {}
+      return;
+    }
+    // If a newer speakAi call has already started, discard this blob
+    if (reqId !== speakRequestRef.current) return;
+    const url = URL.createObjectURL(audioBlob);
+    const audio = new Audio(url);
+    aiAudioRef.current = audio;
+    audio.onended = () => {
+      setAiSpeaking(false);
+      URL.revokeObjectURL(url);
+      if (aiAudioRef.current === audio) aiAudioRef.current = null;
+      triggerAutoListen();
+    };
+    audio.onerror = () => {
+      setAiSpeaking(false);
+      URL.revokeObjectURL(url);
+      if (aiAudioRef.current === audio) aiAudioRef.current = null;
+      triggerAutoListen();
+    };
+    try {
       await audio.play();
     } catch {
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.lang = locale === "hi" ? "hi-IN" : "en-IN";
-      msg.onend = () => { setAiSpeaking(false); triggerAutoListen(); };
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(msg);
+      // audio.play() blocked (e.g. autoplay policy) — clean up without starting
+      // a second voice via SpeechSynthesis; the audio blob was fine, the browser
+      // just needs a user gesture first.
+      URL.revokeObjectURL(url);
+      setAiSpeaking(false);
+      if (aiAudioRef.current === audio) aiAudioRef.current = null;
+      triggerAutoListen();
     }
   };
 
@@ -1702,7 +1725,7 @@ export default function ScreeningRoomPage() {
               </div>
             )}
 
-            {sessionDone && !isGeneralLaborPath && (
+            {isSessionLive && !isGeneralLaborPath && (
               <div style={{
                 padding: "12px 14px",
                 borderTop: "1px solid rgba(35,49,79,0.08)",

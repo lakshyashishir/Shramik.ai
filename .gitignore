@@ -26,3 +26,4 @@ shramik_local.db
 backend/shramik_local.db
 *.db
 .codex/
+JUDGES_QA.md
